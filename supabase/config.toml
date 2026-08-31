@@ -1,0 +1,8 @@
+# Local Supabase project configuration. Adjust ports/auth providers for your machine.
+project_id = "gaming-mania-delhi"
+
+[db]
+major_version = 15
+
+[auth]
+enabled = true

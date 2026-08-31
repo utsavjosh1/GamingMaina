@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #8858ed; /* Vibrant Purple */
+  --color-brand-glow: rgba(136, 88, 237, 0.5);
+
+  --color-obsidian: #0b0c10; /* Deep Black */
+  --color-stealth: #1f2833; /* Dark Slate */
+  --color-crimson: #e50914; /* Power Red */
+  --color-cyan: #45a29e; /* Tech Accent */
+
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-outfit);
+
+  /* Sophisticated Animations */
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-drawBorder: drawBorder 1s ease-out forwards;
+  --animate-glitch-hover: glitch-hover 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)
+    both infinite;
+  --animate-fade-in: fade-in 1s ease-out forwards;
+  --animate-fade-in-up: fade-in-up 0.8s ease-out forwards;
+
+  /* New Vibrant Animations */
+  --animate-float-slow: float-slow 6s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 3s cubic-bezier(0.215, 0.61, 0.355, 1)
+    infinite;
+  --animate-glow-sway: glow-sway 4s ease-in-out infinite alternate;
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%) skewX(-15deg);
+    }
+    100% {
+      transform: translateX(200%) skewX(-15deg);
+    }
+  }
+
+  @keyframes drawBorder {
+    0% {
+      clip-path: inset(0 100% 100% 0);
+    }
+    25% {
+      clip-path: inset(0 0 100% 0);
+    }
+    50% {
+      clip-path: inset(0 0 0 0);
+    }
+    100% {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes glitch-hover {
+    0% {
+      transform: translate(0);
+    }
+    20% {
+      transform: translate(-2px, 2px);
+    }
+    40% {
+      transform: translate(-2px, -2px);
+    }
+    60% {
+      transform: translate(2px, 2px);
+    }
+    80% {
+      transform: translate(2px, -2px);
+    }
+    100% {
+      transform: translate(0);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes float-slow {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.8);
+      opacity: 0.5;
+      box-shadow: 0 0 0 0 rgba(136, 88, 237, 0.7);
+    }
+    70% {
+      transform: scale(1.1);
+      opacity: 0;
+      box-shadow: 0 0 0 20px rgba(136, 88, 237, 0);
+    }
+    100% {
+      transform: scale(0.8);
+      opacity: 0;
+      box-shadow: 0 0 0 0 rgba(136, 88, 237, 0);
+    }
+  }
+
+  @keyframes glow-sway {
+    0% {
+      filter: drop-shadow(0 0 10px rgba(136, 88, 237, 0.3));
+    }
+    100% {
+      filter: drop-shadow(0 0 25px rgba(136, 88, 237, 0.8));
+    }
+  }
+}
+
+@layer base {
+  :root {
+    --background: var(--color-obsidian);
+    --foreground: #ffffff;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), sans-serif;
+    overflow-x: hidden;
+    /* subtle brand vignette */
+    background-image: radial-gradient(
+      circle at 50% 0%,
+      rgba(136, 88, 237, 0.05) 0%,
+      transparent 50%
+    );
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--color-brand);
+    color: white;
+  }
+}
+
+@layer utilities {
+  .tech-border {
+    position: relative;
+  }
+  .tech-border::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 1px solid rgba(229, 9, 20, 0.5); /* Crimson border */
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    transition: clip-path 0.3s ease-out;
+  }
+
+  .clip-diagonal {
+    clip-path: polygon(
+      10px 0,
+      100% 0,
+      100% calc(100% - 10px),
+      calc(100% - 10px) 100%,
+      0 100%,
+      0 10px
+    );
+  }
+
+  .text-gradient-tech {
+    background: linear-gradient(to right, #ffffff, #888888);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .glass-premium {
+    background-color: rgba(31, 40, 51, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 20px rgba(136, 88, 237, 0.4);
+    border-color: var(--color-brand);
+  }
+
+  .animate-in {
+    animation: fade-in-up 0.5s ease-out forwards;
+  }
+}
