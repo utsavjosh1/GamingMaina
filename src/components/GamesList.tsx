@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { getMediaUrl, mediaPaths } from "@/lib/media";
 
 const gameCategories = [
   {
@@ -8,28 +9,27 @@ const gameCategories = [
     games: [
       {
         name: "God of War Ragnarok",
-        image: "/GOW.webp",
+        image: mediaPaths.gow,
       },
       {
         name: "GTA 5 / Legacy",
-        image: "/gts5.jpg",
+        image: mediaPaths.gta5,
       },
       {
         name: "Red Dead Redemption 2",
-        image: "/rdr2.jpg",
+        image: mediaPaths.rdr2,
       },
       {
         name: "Spider-Man 2",
-        image: "/marvels-spider-man-2048x2048-11609.jpeg",
+        image: mediaPaths.spiderman,
       },
       {
         name: "Black Myth Wukong",
-        image: "/BMW.jpg",
+        image: mediaPaths.bmw,
       },
       {
         name: "More Top Titles...",
-        image:
-          "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=400&fit=crop",
+        image: mediaPaths.gow,
       },
     ],
   },
@@ -39,33 +39,27 @@ const gameCategories = [
     games: [
       {
         name: "Valorant",
-        image:
-          "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=400&fit=crop",
+        image: mediaPaths.spiderman,
       },
       {
         name: "Counter Strike 2",
-        image:
-          "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=400&fit=crop",
+        image: mediaPaths.gta5,
       },
       {
         name: "Call of Duty Warzone",
-        image:
-          "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=400&fit=crop",
+        image: mediaPaths.rdr2,
       },
       {
         name: "Beat Saber (VR)",
-        image:
-          "https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?q=80&w=400&fit=crop",
+        image: mediaPaths.gow,
       },
       {
         name: "PUBG / DOTA 2",
-        image:
-          "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=400&fit=crop",
+        image: mediaPaths.spiderman,
       },
       {
         name: "More E-Sports...",
-        image:
-          "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?q=80&w=400&fit=crop",
+        image: mediaPaths.bmw,
       },
     ],
   },
@@ -113,7 +107,7 @@ export function GamesList() {
                     className="relative aspect-3/4 rounded-sm overflow-hidden border border-zinc-800 group cursor-pointer bg-zinc-900 transition-all duration-300 hover:border-brand hover:-translate-y-2 hover:shadow-[0_10px_30px_-10px_rgba(136,88,237,0.4)]"
                   >
                     <Image
-                      src={game.image}
+                      src={getMediaUrl(game.image)}
                       alt={game.name}
                       fill
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"

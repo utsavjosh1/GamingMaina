@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Outfit } from "next/font/google";
+import { Inter, Outfit, Geist } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { cn } from "@/lib/utils";
+import { getMediaUrl } from "@/lib/media";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const inter = Inter({
   variable: "--font-inter",
@@ -44,7 +48,7 @@ export const metadata: Metadata = {
     siteName: "Gaming Mania Delhi",
     images: [
       {
-        url: "/og-image.svg",
+        url: getMediaUrl("site/og-image.svg"),
         width: 1200,
         height: 630,
         alt: "Gaming Mania Delhi - Premium Gaming Lounge",
@@ -56,7 +60,7 @@ export const metadata: Metadata = {
     title: "Gaming Mania Delhi | Premium Gaming Lounge",
     description:
       "Extreme performance and immersive gaming environment in Delhi.",
-    images: ["/og-image.svg"],
+    images: [getMediaUrl("site/og-image.svg")],
   },
   robots: {
     index: true,
@@ -70,7 +74,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" data-scroll-behavior="smooth" className={cn("scroll-smooth", "font-sans", geist.variable)}>
       <body
         className={`${inter.variable} ${outfit.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
       >

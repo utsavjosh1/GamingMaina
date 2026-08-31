@@ -1,6 +1,7 @@
 import React from "react";
 import { DynamicButton } from "./ui/DynamicButton";
 import Image from "next/image";
+import { getMediaUrl, mediaPaths } from "@/lib/media";
 
 export function Hero() {
   return (
@@ -8,10 +9,11 @@ export function Hero() {
       {/* Immersive Background Image */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/marvels-spider-man-2048x2048-11609.jpeg"
+          src={getMediaUrl(mediaPaths.spiderman)}
           alt="Premium Gaming Lounge Delhi - Gaming Mania"
           fill
           priority
+          loading="eager"
           sizes="100vw"
           className="object-cover opacity-50 mix-blend-luminosity"
         />

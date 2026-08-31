@@ -5,6 +5,7 @@ import Image from "next/image";
 import { DynamicButton } from "@/components/ui/DynamicButton";
 import { getStationTypes, getAvailableSlots, createBooking } from "./actions";
 import { getDelhiDate, getNextDelhiDates, formatDelhiDate } from "@/lib/dates";
+import { getMediaUrl } from "@/lib/media";
 
 interface StationTypeWithAvailability {
   id: string;
@@ -201,7 +202,7 @@ export default function BookOnlinePage() {
                     <div className="relative h-36 w-full overflow-hidden">
                       {type.image_url && (
                         <Image
-                          src={type.image_url}
+                          src={getMediaUrl(type.image_url)}
                           alt={type.name}
                           fill
                           sizes="(max-width: 768px) 100vw, 33vw"

@@ -2,61 +2,62 @@ import React from "react";
 import { PremiumCard } from "./ui/PremiumCard";
 import { DynamicButton } from "./ui/DynamicButton";
 import Image from "next/image";
+import { getMediaUrl, mediaPaths } from "@/lib/media";
 
 const services = [
   {
     name: "PC-RTX",
     price: "₹150/hr",
     type: "COMPETITIVE",
-    image: "/marvels-spider-man-2048x2048-11609.jpeg",
+    image: mediaPaths.spiderman,
   },
   {
     name: "PC-GTX",
     price: "₹100/hr",
     type: "CASUAL",
-    image: "/gts5.jpg",
+    image: mediaPaths.gta5,
   },
   {
     name: "PS5",
     price: "₹200/hr",
     type: "NEXT-GEN",
-    image: "/GOW.webp",
+    image: mediaPaths.gow,
   },
   {
     name: "PS4",
     price: "₹150/hr",
     type: "CO-OP",
-    image: "/rdr2.jpg",
+    image: mediaPaths.rdr2,
   },
   {
     name: "Virtual Reality",
     price: "₹250/hr",
     type: "IMMERSIVE",
-    image: "/marvels-spider-man-2048x2048-11609.jpeg",
+    image: mediaPaths.spiderman,
   },
   {
     name: "Racing Wheel",
     price: "₹180/hr",
     type: "SIMULATOR",
-    image: "/BMW.jpg",
+    image: mediaPaths.bmw,
   },
   {
     name: "Billiards",
     price: "₹200/hr",
     type: "LOUNGE",
-    image: "/gts5.jpg",
+    image: mediaPaths.gta5,
   },
   {
     name: "Air Hockey",
     price: "₹150/hr",
     type: "ARCADE",
-    image: "/GOW.webp",
+    image: mediaPaths.gow,
   },
   {
     name: "Shooting",
     price: "₹150/hr",
     type: "CASUAL",
-    image: "/rdr2.jpg",
+    image: mediaPaths.rdr2,
   },
 ];
 
@@ -96,7 +97,7 @@ export function Services() {
             >
               <div className="absolute inset-0 w-full h-full z-0">
                 <Image
-                  src={svc.image}
+                  src={getMediaUrl(svc.image)}
                   alt={svc.name}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

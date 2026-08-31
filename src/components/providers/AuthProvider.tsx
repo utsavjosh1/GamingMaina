@@ -1,13 +1,21 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { authClient } from "@/lib/auth-client";
 import type { Profile } from "@/lib/supabase/types";
 
+export interface AppUser {
+  id: string;
+  email: string | null;
+  user_metadata: {
+    full_name?: string;
+    avatar_url?: string;
+  };
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   profile: Profile | null;
   loading: boolean;
   signInWithGoogle: (redirect?: string) => Promise<void>;
@@ -23,75 +31,98 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function useAuth() {
-  return useContext(AuthContext);
+  return React.useContext(AuthContext);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [resolvedProfileUserId, setResolvedProfileUserId] = useState<string | null>(null);
   const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const sessionUser = session?.user;
+  const userId = sessionUser?.id;
+  const loading = isPending || Boolean(userId && resolvedProfileUserId !== userId);
+  const user: AppUser | null = sessionUser
+    ? {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        user_metadata: {
+          full_name: sessionUser.name || undefined,
+          avatar_url: sessionUser.image || undefined,
+        },
+      }
+    : null;
 
   useEffect(() => {
-    let requestId = 0;
+    let active = true;
+    if (isPending) return () => { active = false; };
+    if (!userId) {
+      queueMicrotask(() => {
+        if (active) setProfile(null);
+      });
+      return () => { active = false; };
+    }
+    void fetch("/api/profile", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const result = (await response.json()) as {
+          profile: {
+            id: string;
+            fullName: string | null;
+            avatarUrl: string | null;
+            phone: string | null;
+            role: Profile["role"];
+            membershipType: Profile["membership_type"];
+            createdAt: Date | string;
+          } | null;
+        };
+        return result.profile;
+      })
+      .then((row) => {
+        if (!active) return;
+        setProfile(
+          row
+            ? {
+                id: row.id,
+                full_name: row.fullName,
+                avatar_url: row.avatarUrl,
+                phone: row.phone,
+                role: row.role,
+                membership_type: row.membershipType,
+                created_at: new Date(row.createdAt).toISOString(),
+              }
+            : null,
+        );
+      })
+      .catch(() => {
+        if (active) setProfile(null);
+      })
+      .finally(() => {
+        if (active) setResolvedProfileUserId(userId!);
+      });
 
-    const fetchProfile = async (userId: string) => {
-      const currentRequest = ++requestId;
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, phone, role, membership_type, created_at")
-        .eq("id", userId)
-        .single();
-      if (currentRequest === requestId) setProfile(data as Profile | null);
+    return () => {
+      active = false;
     };
-
-    const loadInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) await fetchProfile(session.user.id);
-      setLoading(false);
-    };
-
-    void loadInitialSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (session?.user) {
-        // Do not await network work inside Supabase's auth callback.
-        void fetchProfile(session.user.id);
-      } else {
-        requestId++;
-        setProfile(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, [isPending, userId]);
 
   const signInWithGoogle = async (redirect?: string) => {
     const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
       ? redirect
       : "/";
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeRedirect)}`;
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await authClient.signIn.social({
       provider: "google",
-      options: { redirectTo },
+      callbackURL: safeRedirect,
     });
     if (error) throw error;
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authClient.signOut();
     if (error) throw error;
-    setUser(null);
     setProfile(null);
     router.push("/");
+    router.refresh();
   };
 
   return (

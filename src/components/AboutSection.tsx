@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { getMediaUrl, mediaPaths } from "@/lib/media";
 
 export function AboutSection() {
   return (
@@ -50,9 +51,10 @@ export function AboutSection() {
           {/* Image Side */}
           <div className="relative h-[600px] w-full rounded-tr-[100px] rounded-bl-[100px] overflow-hidden border border-zinc-800 shadow-[0_0_50px_rgba(136,88,237,0.15)] group">
             <Image
-              src="/rdr2.jpg"
+              src={getMediaUrl(mediaPaths.rdr2)}
               alt="Premium Gaming Experience"
               fill
+              sizes="(max-width: 768px) 100vw, 50vw"
               className="object-cover transition-transform duration-1000 group-hover:scale-110"
             />
             <div className="absolute inset-0 bg-linear-to-tr from-obsidian/80 via-transparent to-brand/20"></div>

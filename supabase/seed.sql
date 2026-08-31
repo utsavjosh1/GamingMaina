@@ -3,15 +3,15 @@
 -- Run with `supabase db reset` or `supabase db seed`; this file is safe to rerun.
 
 INSERT INTO public.station_types (name, category, base_price_per_hour, image_url) VALUES
-  ('PC-RTX', 'COMPETITIVE', 15000, 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop'),
-  ('PC-GTX', 'CASUAL', 10000, 'https://images.unsplash.com/photo-1593640408182-31c70c8268f5?q=80&w=600&auto=format&fit=crop'),
-  ('PS5', 'NEXT-GEN', 20000, 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?q=80&w=600&auto=format&fit=crop'),
-  ('PS4', 'CO-OP', 15000, 'https://images.unsplash.com/photo-1486401899868-0e435ed85128?q=80&w=600&auto=format&fit=crop'),
-  ('Virtual Reality', 'IMMERSIVE', 25000, 'https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?q=80&w=600&auto=format&fit=crop'),
-  ('Racing Wheel', 'SIMULATOR', 18000, 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=600&auto=format&fit=crop'),
-  ('Billiards', 'LOUNGE', 20000, 'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=600&auto=format&fit=crop'),
-  ('Air Hockey', 'ARCADE', 15000, 'https://images.unsplash.com/photo-1593640408182-31c70c8268f5?q=80&w=600&auto=format&fit=crop'),
-  ('Shooting', 'CASUAL', 15000, 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=600&auto=format&fit=crop')
+  ('PC-RTX', 'COMPETITIVE', 15000, 'site/spiderman.jpeg'),
+  ('PC-GTX', 'CASUAL', 10000, 'site/gta5.jpg'),
+  ('PS5', 'NEXT-GEN', 20000, 'site/gow.webp'),
+  ('PS4', 'CO-OP', 15000, 'site/rdr2.jpg'),
+  ('Virtual Reality', 'IMMERSIVE', 25000, 'site/spiderman.jpeg'),
+  ('Racing Wheel', 'SIMULATOR', 18000, 'site/bmw.jpg'),
+  ('Billiards', 'LOUNGE', 20000, 'site/gta5.jpg'),
+  ('Air Hockey', 'ARCADE', 15000, 'site/gow.webp'),
+  ('Shooting', 'CASUAL', 15000, 'site/rdr2.jpg')
 ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category, base_price_per_hour = EXCLUDED.base_price_per_hour, image_url = EXCLUDED.image_url;
 
 DO $$

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -8,16 +8,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Admin | Gaming Mania Delhi" };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile || !["admin", "staff"].includes(profile.role)) redirect("/");
+  try {
+    await requireStaff();
+  } catch (error) {
+    if (error instanceof Error && error.message === "Not authenticated") redirect("/login");
+    redirect("/");
+  }
 
   const links = [
     { href: "/admin", label: "Dashboard", icon: "◆" },
