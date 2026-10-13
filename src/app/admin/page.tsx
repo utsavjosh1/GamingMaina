@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  getActingContext,
   getAllStations,
   getActiveSessions,
   getBookingsForDate,
@@ -13,11 +14,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const today = getDelhiDate();
 
-  const [stations, sessions, bookings, revenue] = await Promise.all([
+  const [stations, sessions, bookings, revenue, acting] = await Promise.all([
     getAllStations(),
     getActiveSessions(),
     getBookingsForDate(today),
     getTodayRevenue(),
+    getActingContext(),
   ]);
 
   return (
@@ -26,6 +28,8 @@ export default async function AdminPage() {
       sessions={sessions}
       bookings={bookings}
       revenue={revenue}
+      orgName={acting.org.name}
+      branchName={acting.branch.name}
     />
   );
 }

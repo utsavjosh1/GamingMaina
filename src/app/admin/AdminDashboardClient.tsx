@@ -1,21 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
-  updateStationStatus,
-  startSession,
+  assignStation,
+  cancelBookingAsStaff,
+  checkInBooking,
   endSession,
+  getAllStations,
+  getBookingsForDate,
+  markNoShow,
   pauseSession,
   resumeSession,
+  startSession,
+  updateStationStatus,
 } from "./actions";
 import type { AdminBooking, AdminSession, AdminStation, StationStatus } from "@/lib/supabase/types";
 import { formatDelhiDate, getDelhiDate } from "@/lib/dates";
+import { ClockProvider } from "@/features/operations/components/ClockProvider";
+import { CommandPalette } from "@/features/operations/components/CommandPalette";
+import { MetricCard } from "@/features/operations/components/MetricCard";
+import { StationDrawer } from "@/features/operations/components/StationDrawer";
+import { StationGrid } from "@/features/operations/components/StationGrid";
+import { OpsAlert, OpsEmpty, OpsPanel } from "@/components/ui/OpsPrimitives";
+import { formatCurrency } from "@/features/operations/time";
 
 interface AdminDashboardClientProps {
   stations: AdminStation[];
   sessions: AdminSession[];
   bookings: AdminBooking[];
   revenue: { total: number; byMethod: Record<string, number>; count: number };
+  orgName: string;
+  branchName: string;
+}
+
+interface SettlementNotice {
+  stationName: string;
+  totalMinutes: number;
+  totalPrice: number;
 }
 
 export function AdminDashboardClient({
@@ -23,380 +44,444 @@ export function AdminDashboardClient({
   sessions: initialSessions,
   bookings,
   revenue,
+  orgName,
+  branchName,
 }: AdminDashboardClientProps) {
-  const [stations, setStations] = useState<AdminStation[]>(initialStations);
-  const [sessions, setSessions] = useState<AdminSession[]>(initialSessions);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(0);
+  const [stations, setStations] = React.useState<AdminStation[]>(initialStations);
+  const [sessions, setSessions] = React.useState<AdminSession[]>(initialSessions);
+  const [bookingList, setBookingList] = React.useState<AdminBooking[]>(bookings);
+  const [selectedStationId, setSelectedStationId] = React.useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = React.useState<StationStatus | "all">("all");
+  const [density, setDensity] = React.useState<"default" | "compact">("default");
+  const [commandOpen, setCommandOpen] = React.useState(false);
+  const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [settlement, setSettlement] = React.useState<SettlementNotice | null>(null);
+  const [assignPick, setAssignPick] = React.useState<Record<string, string>>({});
+  // Fresh key per start intent; retries reuse it, the next intent mints a new one.
+  // End keys are deterministic per session: re-ending returns the stored bill.
+  const startKeyRef = React.useRef(crypto.randomUUID());
 
   React.useEffect(() => {
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
+    const openCommand = () => setCommandOpen(true);
+    window.addEventListener("gamingmania:open-command", openCommand);
+    return () => window.removeEventListener("gamingmania:open-command", openCommand);
   }, []);
 
-  const formatPrice = (paise: number) =>
-    `₹${(paise / 100).toLocaleString("en-IN")}`;
-
-  const statusColors: Record<StationStatus, string> = {
-    available: "bg-green-500",
-    booked: "bg-blue-500",
-    in_use: "bg-brand",
-    maintenance: "bg-yellow-500",
-    offline: "bg-red-500",
-  };
-
-  const handleStationAction = async (
-    stationId: string,
-    action: "available" | "maintenance" | "offline",
-  ) => {
-    setActionLoading(stationId);
-    try {
-      await updateStationStatus(stationId, action);
-      setStations((prev) =>
-        prev.map((s) => s.id === stationId ? { ...s, status: action } : s),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Station update failed");
-    }
-    setActionLoading(null);
-  };
-
-  const handleStartSession = async (stationId: string) => {
-    setActionLoading(stationId);
-    try {
-      const session = await startSession(stationId);
-      setSessions((prev) => [session as AdminSession, ...prev]);
-      setStations((prev) =>
-        prev.map((s) =>
-          s.id === stationId
-            ? { ...s, status: "in_use", current_session_id: session.id }
-            : s,
-        ),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start session");
-    }
-    setActionLoading(null);
-  };
-
-  const handleEndSession = async (sessionId: string) => {
-    setActionLoading(sessionId);
-    try {
-      const result = await endSession(sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      setStations((prev) =>
-        prev.map((s) =>
-          s.current_session_id === sessionId
-            ? { ...s, status: "available", current_session_id: null }
-            : s,
-        ),
-      );
-      alert(
-        `Session ended: ${result.stationName}\nDuration: ${result.totalMinutes} min\nTotal: ${formatPrice(result.totalPrice)}`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to end session");
-    }
-    setActionLoading(null);
-  };
-
-  const handlePauseResume = async (sessionId: string, status: string) => {
-    setActionLoading(sessionId);
-    try {
-      if (status === "active") {
-        await pauseSession(sessionId);
-        setSessions((prev) =>
-          prev.map((s) => s.id === sessionId ? { ...s, status: "paused" } : s),
-        );
-      } else {
-        await resumeSession(sessionId);
-        setSessions((prev) =>
-          prev.map((s) => s.id === sessionId ? { ...s, status: "active" } : s),
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update session");
-    }
-    setActionLoading(null);
-  };
-
-  const stationsByType = stations.reduce(
-    (acc: Record<string, AdminStation[]>, station) => {
-      const typeName = station.station_type?.name || "Unknown";
-      if (!acc[typeName]) acc[typeName] = [];
-      acc[typeName].push(station);
-      return acc;
-    },
-    {},
+  const selectedStation = React.useMemo(
+    () => stations.find((station) => station.id === selectedStationId) ?? null,
+    [selectedStationId, stations],
   );
 
-  const confirmedBookings = bookings.filter((b) => b.status === "confirmed");
+  const selectedSession = selectedStation
+    ? sessions.find((session) => session.station_id === selectedStation.id)
+    : undefined;
+
+  const metrics = React.useMemo(() => {
+    const total = stations.length;
+    const available = stations.filter((station) => station.status === "available").length;
+    const occupied = stations.filter((station) => station.status === "in_use").length;
+    const issues = stations.filter((station) => station.status === "maintenance" || station.status === "offline").length;
+    const reserved = bookingList.filter((booking) => booking.status === "confirmed").length;
+    const occupancy = total > 0 ? Math.round((occupied / total) * 100) : 0;
+
+    return { total, available, occupied, issues, reserved, occupancy };
+  }, [stations, bookingList]);
+
+  const updateLocalStation = React.useCallback((stationId: string, status: StationStatus, sessionId: string | null = null) => {
+    setStations((current) => current.map((station) => (
+      station.id === stationId ? { ...station, status, current_session_id: sessionId } : station
+    )));
+  }, []);
+
+  const handleStationStatus = React.useCallback(async (
+    stationId: string,
+    status: Extract<StationStatus, "available" | "maintenance" | "offline">,
+  ) => {
+    setActionLoading(stationId);
+    setError(null);
+    setSettlement(null);
+    try {
+      await updateStationStatus(stationId, status);
+      updateLocalStation(stationId, status);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Station update failed");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [updateLocalStation]);
+
+  const handleStartSession = React.useCallback(async (stationId: string) => {
+    setActionLoading(stationId);
+    setError(null);
+    setSettlement(null);
+    try {
+      const created = await startSession(stationId, undefined, startKeyRef.current);
+      startKeyRef.current = crypto.randomUUID();
+      const station = stations.find((item) => item.id === stationId) ?? null;
+      const adminSession: AdminSession = {
+        ...(created as AdminSession),
+        station,
+        profile: null,
+      };
+      setSessions((current) => [adminSession, ...current]);
+      updateLocalStation(stationId, "in_use", created.id);
+      setSelectedStationId(stationId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to start session");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [stations, updateLocalStation]);
+
+  const handleEndSession = React.useCallback(async (sessionId: string) => {
+    setActionLoading(sessionId);
+    setError(null);
+    setSettlement(null);
+    try {
+      const result = await endSession(sessionId, `session-end:${sessionId}`);
+      setSessions((current) => current.filter((session) => session.id !== sessionId));
+      setStations((current) => current.map((station) => (
+        station.current_session_id === sessionId
+          ? { ...station, status: "available", current_session_id: null }
+          : station
+      )));
+      setSettlement(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to end session");
+    } finally {
+      setActionLoading(null);
+    }
+  }, []);
+
+  const handlePauseResume = React.useCallback(async (sessionId: string, status: AdminSession["status"]) => {
+    setActionLoading(sessionId);
+    setError(null);
+    try {
+      const updated = status === "active" ? await pauseSession(sessionId) : await resumeSession(sessionId);
+      setSessions((current) => current.map((session) => (
+        session.id === sessionId ? { ...session, ...(updated as AdminSession) } : session
+      )));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update session");
+    } finally {
+      setActionLoading(null);
+    }
+  }, []);
+
+  const refreshFloor = React.useCallback(async () => {
+    try {
+      const [freshStations, freshBookings] = await Promise.all([
+        getAllStations(),
+        getBookingsForDate(getDelhiDate()),
+      ]);
+      setStations(freshStations);
+      setBookingList(freshBookings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to refresh floor");
+    }
+  }, []);
+
+  const handleCheckIn = React.useCallback(async (bookingId: string, stationId?: string) => {
+    setActionLoading(bookingId);
+    setError(null);
+    try {
+      await checkInBooking({ bookingId, stationId });
+      await refreshFloor();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to check in");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [refreshFloor]);
+
+  const handleAssign = React.useCallback(async (bookingId: string, stationId: string) => {
+    if (!stationId) return;
+    setActionLoading(bookingId);
+    setError(null);
+    try {
+      await assignStation({ bookingId, stationId });
+      await refreshFloor();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to assign station");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [refreshFloor]);
+
+  const handleNoShow = React.useCallback(async (bookingId: string) => {
+    setActionLoading(bookingId);
+    setError(null);
+    try {
+      await markNoShow(bookingId);
+      await refreshFloor();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to mark no-show");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [refreshFloor]);
+
+  const handleCancelBooking = React.useCallback(async (bookingId: string) => {
+    setActionLoading(bookingId);
+    setError(null);
+    try {
+      await cancelBookingAsStaff(bookingId);
+      await refreshFloor();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to cancel booking");
+    } finally {
+      setActionLoading(null);
+    }
+  }, [refreshFloor]);
+
+  const upcomingBookings = bookingList
+    .filter((booking) => booking.status === "confirmed" || booking.status === "checked_in")
+    .slice(0, 6);
 
   return (
-    <div className="p-8">
-      <div className="mb-10">
-        {error && (
-          <div role="alert" className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 p-3 font-mono text-sm">
-            {error}
+    <ClockProvider>
+      <div className="mx-auto w-full max-w-[88rem] space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[13px] text-[var(--erp-muted)]">
+              {formatDelhiDate(getDelhiDate(), { weekday: "long", month: "long", day: "numeric" })}
+              <span className="mx-2 text-slate-700">·</span>
+              {orgName} · {branchName} branch
+            </p>
+            <h1 className="ops-heading mt-1 text-2xl font-semibold tracking-tight text-white lg:text-[1.75rem]">
+              Floor overview
+            </h1>
+            <p className="mt-1 text-sm text-[var(--erp-muted)]">
+              {metrics.available} of {metrics.total} stations ready · {sessions.length} sessions live · {formatCurrency(revenue.total)} collected today.
+            </p>
           </div>
-        )}
-        <h1 className="text-3xl font-heading font-black text-white uppercase tracking-tight">
-          Dashboard
-        </h1>
-        <p className="text-zinc-500 font-mono text-sm mt-1">
-          {formatDelhiDate(getDelhiDate(), {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </p>
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCommandOpen(true)}
+              className="inline-flex min-h-10 items-center whitespace-nowrap rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.06]"
+            >
+              Search · ⌘K
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const first = stations.find((station) => station.status === "available");
+                if (first) void handleStartSession(first.id);
+                else setError("No station is available right now. Mark a station available before starting a walk-in session.");
+              }}
+              className="inline-flex min-h-10 items-center whitespace-nowrap rounded-[10px] bg-paper px-4 text-sm font-semibold text-ink transition hover:bg-white"
+            >
+              New walk-in session
+            </button>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <div className="bg-stealth/30 border border-zinc-800 p-5">
-          <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-            Today Revenue
-          </span>
-          <span className="text-brand font-heading font-black text-3xl">
-            {formatPrice(revenue.total)}
-          </span>
-          <span className="text-zinc-600 font-mono text-xs block mt-1">
-            {revenue.count} payments
-          </span>
-        </div>
-        <div className="bg-stealth/30 border border-zinc-800 p-5">
-          <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-            Active Sessions
-          </span>
-          <span className="text-green-400 font-heading font-black text-3xl">
-            {sessions.length}
-          </span>
-        </div>
-        <div className="bg-stealth/30 border border-zinc-800 p-5">
-          <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-            Today Bookings
-          </span>
-          <span className="text-cyan font-heading font-black text-3xl">
-            {confirmedBookings.length}
-          </span>
-        </div>
-        <div className="bg-stealth/30 border border-zinc-800 p-5">
-          <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-            Stations Online
-          </span>
-          <span className="text-white font-heading font-black text-3xl">
-            {
-              stations.filter(
-                (s) => s.status !== "offline" && s.status !== "maintenance",
-              ).length
-            }
-            /{stations.length}
-          </span>
-        </div>
-      </div>
+        {(error || settlement) ? (
+          <div className="space-y-3" aria-live="polite">
+            {error ? (
+              <OpsAlert tone="error" title="Action needed.">
+                {error}
+              </OpsAlert>
+            ) : null}
+            {settlement ? (
+              <OpsAlert tone="success" title={`Session ended on ${settlement.stationName}.`}>
+                {settlement.totalMinutes} billable minutes · {formatCurrency(settlement.totalPrice)} due. Collect it under Payments.
+              </OpsAlert>
+            ) : null}
+          </div>
+        ) : null}
 
-      <div className="mb-12">
-        <h2 className="text-xl font-heading font-bold text-white uppercase tracking-widest mb-6">
-          Station Overview
-        </h2>
-        <div className="space-y-8">
-          {Object.entries(stationsByType).map(
-            ([typeName, typeStations]: [string, AdminStation[]]) => (
-              <div key={typeName}>
-                <h3 className="text-sm font-heading font-bold text-zinc-400 uppercase tracking-widest mb-3">
-                  {typeName}
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {typeStations.map((station) => (
-                    <div
-                      key={station.id}
-                      className="bg-stealth/20 border border-zinc-800 p-4 relative group"
-                    >
-                      <div className="flex items-center gap-2 mb-3">
-                        <span
-                          className={`w-2 h-2 rounded-full ${statusColors[station.status] || "bg-zinc-500"} ${station.status === "in_use" ? "animate-pulse" : ""}`}
-                        ></span>
-                        <span className="text-white font-heading font-bold text-sm">
-                          {station.name}
+        <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard label="Stations ready" value={`${metrics.available}/${metrics.total}`} helper="Available now" tone="success" />
+          <MetricCard label="Occupancy" value={`${metrics.occupancy}%`} helper={`${metrics.occupied} stations occupied`} tone="primary" />
+          <MetricCard label="Active sessions" value={sessions.length} helper="Live or paused" />
+          <MetricCard label="Revenue today" value={formatCurrency(revenue.total)} helper={`${revenue.count} payments collected`} />
+        </section>
+
+        {(metrics.issues > 0 || metrics.reserved > 0) ? (
+          <p className="text-[13px] text-[var(--erp-muted)]">
+            {metrics.issues > 0 ? `${metrics.issues} station${metrics.issues === 1 ? "" : "s"} need${metrics.issues === 1 ? "s" : ""} attention` : ""}
+            {metrics.issues > 0 && metrics.reserved > 0 ? " · " : ""}
+            {metrics.reserved > 0 ? `${metrics.reserved} reservation${metrics.reserved === 1 ? "" : "s"} confirmed today` : ""}
+          </p>
+        ) : null}
+
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="ops-surface rounded-[14px] p-4 lg:p-5">
+            <StationGrid
+              stations={stations}
+              sessions={sessions}
+              selectedStatus={selectedStatus}
+              onStatusChange={setSelectedStatus}
+              density={density}
+              onDensityChange={setDensity}
+              onOpenStation={(station) => setSelectedStationId(station.id)}
+              onStartSession={handleStartSession}
+              onMarkMaintenance={(stationId) => void handleStationStatus(stationId, "maintenance")}
+              loadingKey={actionLoading}
+            />
+          </div>
+
+          <aside className="space-y-4">
+            <OpsPanel title="Live sessions" description={`${sessions.length} on the floor`}>
+              {sessions.length === 0 ? (
+                <OpsEmpty title="Floor is clear" description="No active sessions. Start a walk-in session to fill the next station." />
+              ) : (
+                <div className="space-y-2">
+                  {sessions.slice(0, 4).map((session) => (
+                    <button key={session.id} type="button" onClick={() => setSelectedStationId(session.station_id)} className="ops-surface-interactive w-full rounded-[10px] p-3 text-left">
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-white">{session.station?.name ?? "Station"}</span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-300">
+                          <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                          Live
                         </span>
-                      </div>
-                      <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">
-                        {station.status.replace("_", " ")}
                       </span>
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {station.status === "available" && (
-                          <>
-                            <button
-                              onClick={() => handleStartSession(station.id)}
-                              disabled={actionLoading === station.id}
-                              className="text-[10px] font-mono uppercase tracking-wider text-green-400 hover:bg-green-500/10 px-2 py-1 border border-green-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              Start
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleStationAction(station.id, "maintenance")
-                              }
-                              disabled={actionLoading === station.id}
-                              className="text-[10px] font-mono uppercase tracking-wider text-yellow-400 hover:bg-yellow-500/10 px-2 py-1 border border-yellow-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              Maint
-                            </button>
-                          </>
-                        )}
-                        {(station.status === "maintenance" ||
-                          station.status === "offline") && (
-                          <button
-                            onClick={() =>
-                              handleStationAction(station.id, "available")
-                            }
-                            disabled={actionLoading === station.id}
-                            className="text-[10px] font-mono uppercase tracking-wider text-green-400 hover:bg-green-500/10 px-2 py-1 border border-green-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            Activate
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                      <span className="mt-0.5 block truncate text-xs text-[var(--erp-muted)]">{session.profile?.full_name || "Walk-in guest"}</span>
+                    </button>
                   ))}
                 </div>
-              </div>
-            ),
-          )}
+              )}
+            </OpsPanel>
+
+            <OpsPanel title="Reservations today" description={`${upcomingBookings.length} arriving`}>
+              {upcomingBookings.length === 0 ? (
+                <OpsEmpty title="No reservations" description="Walk-ins can start immediately on any ready station." />
+              ) : (
+                <div className="space-y-2">
+                  {upcomingBookings.map((booking) => (
+                    <ReservationRow
+                      key={booking.id}
+                      booking={booking}
+                      stations={stations}
+                      busy={actionLoading === booking.id}
+                      pick={assignPick[booking.id] ?? ""}
+                      onPickChange={(stationId) => setAssignPick((current) => ({ ...current, [booking.id]: stationId }))}
+                      onCheckIn={() => void handleCheckIn(booking.id, assignPick[booking.id] || undefined)}
+                      onAssign={() => assignPick[booking.id] && void handleAssign(booking.id, assignPick[booking.id])}
+                      onNoShow={() => void handleNoShow(booking.id)}
+                      onCancel={() => void handleCancelBooking(booking.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </OpsPanel>
+          </aside>
         </div>
       </div>
 
-      {sessions.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-xl font-heading font-bold text-white uppercase tracking-widest mb-6">
-            Active Sessions
-          </h2>
-          <div className="space-y-3">
-            {sessions.map((session) => {
-              const elapsed = Math.max(
-                0,
-                Math.floor((now - new Date(session.started_at).getTime()) / 60000) -
-                  (session.total_paused_minutes || 0) -
-                  (session.paused_at ? Math.ceil((now - new Date(session.paused_at).getTime()) / 60000) : 0),
-              );
-              return (
-                <div
-                  key={session.id}
-                  className="bg-stealth/20 border border-zinc-800 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-3 h-3 rounded-full ${session.status === "active" ? "bg-green-500 animate-pulse" : "bg-yellow-500"}`}
-                    ></div>
-                    <div>
-                      <span className="text-white font-heading font-bold">
-                        {session.station?.name || "Station"}
-                      </span>
-                      <span className="text-zinc-500 font-mono text-xs ml-3">
-                        {session.profile?.full_name || "Walk-in"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-brand font-mono font-bold text-lg tabular-nums">
-                      {Math.floor(elapsed / 60)}h {elapsed % 60}m
-                    </span>
-                    <button
-                      onClick={() =>
-                        handlePauseResume(session.id, session.status)
-                      }
-                      disabled={actionLoading === session.id}
-                      className="text-[10px] font-mono uppercase tracking-wider text-yellow-400 hover:bg-yellow-500/10 px-3 py-1.5 border border-yellow-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {session.status === "active" ? "Pause" : "Resume"}
-                    </button>
-                    <button
-                      onClick={() => handleEndSession(session.id)}
-                      disabled={actionLoading === session.id}
-                      className="text-[10px] font-mono uppercase tracking-wider text-red-400 hover:bg-red-500/10 px-3 py-1.5 border border-red-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      End
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <StationDrawer
+        station={selectedStation}
+        session={selectedSession}
+        loadingKey={actionLoading}
+        onClose={() => setSelectedStationId(null)}
+        onStartSession={handleStartSession}
+        onEndSession={handleEndSession}
+        onPauseResume={handlePauseResume}
+        onMarkAvailable={(stationId) => void handleStationStatus(stationId, "available")}
+        onMarkMaintenance={(stationId) => void handleStationStatus(stationId, "maintenance")}
+      />
+      <CommandPalette
+        stations={stations}
+        sessions={sessions}
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onOpenStation={(station) => setSelectedStationId(station.id)}
+        onStartSession={handleStartSession}
+      />
+    </ClockProvider>
+  );
+}
 
-      <div>
-        <h2 className="text-xl font-heading font-bold text-white uppercase tracking-widest mb-6">
-          Today&apos;s Bookings ({bookings.length})
-        </h2>
-        {bookings.length === 0 ? (
-          <div className="bg-stealth/20 border border-zinc-800 p-8 text-center">
-            <p className="text-zinc-500 font-heading">No bookings for today.</p>
-          </div>
+function ReservationRow({
+  booking,
+  stations,
+  busy,
+  pick,
+  onPickChange,
+  onCheckIn,
+  onAssign,
+  onNoShow,
+  onCancel,
+}: {
+  booking: AdminBooking;
+  stations: AdminStation[];
+  busy: boolean;
+  pick: string;
+  onPickChange: (stationId: string) => void;
+  onCheckIn: () => void;
+  onAssign: () => void;
+  onNoShow: () => void;
+  onCancel: () => void;
+}) {
+  const compatible = stations.filter(
+    (station) => station.station_type_id === booking.station_type_id && station.status === "available",
+  );
+  const actionClass =
+    "inline-flex min-h-8 items-center justify-center whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold transition disabled:opacity-50";
+
+  return (
+    <div className="ops-sunken rounded-[10px] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="tnum text-sm font-semibold text-white">{booking.start_time.slice(0, 5)}</span>
+        <span className="flex items-center gap-2">
+          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${booking.status === "checked_in" ? "bg-sky-400/15 text-sky-300" : "bg-white/[0.06] text-slate-300"}`}>
+            {booking.status === "checked_in" ? "Checked in" : "Confirmed"}
+          </span>
+          <span className="tnum text-[13px] font-medium text-ember-strong">{formatCurrency(booking.estimated_price)}</span>
+        </span>
+      </div>
+      <p className="mt-1 truncate text-[13px] text-slate-300">{booking.profile?.full_name || "Customer"}</p>
+      <p className="truncate text-xs text-[var(--erp-muted)]">{booking.station?.name || booking.station_type?.name || "Any station"} · {booking.duration_hours}h</p>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {booking.status === "confirmed" ? (
+          <>
+            <select
+              aria-label="Assign station"
+              value={pick}
+              onChange={(event) => onPickChange(event.target.value)}
+              disabled={busy}
+              className="min-h-8 max-w-[10rem] truncate rounded-lg border border-white/[0.1] bg-black/30 px-2 text-xs text-slate-200 disabled:opacity-50"
+            >
+              <option value="">Any station</option>
+              {compatible.map((station) => (
+                <option key={station.id} value={station.id}>{station.name}</option>
+              ))}
+            </select>
+            <button type="button" onClick={onCheckIn} disabled={busy} className={`${actionClass} bg-paper text-ink hover:bg-white`}>
+              {busy ? "…" : "Check in"}
+            </button>
+            <button type="button" onClick={onNoShow} disabled={busy} className={`${actionClass} border border-white/[0.1] bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]`}>
+              No-show
+            </button>
+            <button type="button" onClick={onCancel} disabled={busy} className={`${actionClass} border border-red-400/25 bg-red-400/10 text-red-200 hover:bg-red-400/15`}>
+              Cancel
+            </button>
+          </>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-zinc-800">
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Time
-                  </th>
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Station
-                  </th>
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Customer
-                  </th>
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Duration
-                  </th>
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Status
-                  </th>
-                  <th className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest py-3 px-4">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr
-                    key={b.id}
-                    className="border-b border-zinc-800/50 hover:bg-stealth/20"
-                  >
-                    <td className="text-white font-mono text-sm py-3 px-4">
-                      {b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}
-                    </td>
-                    <td className="text-white font-heading font-bold text-sm py-3 px-4">
-                      {b.station_type?.name}
-                    </td>
-                    <td className="text-zinc-400 text-sm py-3 px-4">
-                      {b.profile?.full_name || "—"}
-                    </td>
-                    <td className="text-zinc-400 font-mono text-sm py-3 px-4">
-                      {b.duration_hours}h
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest ${b.status === "confirmed" ? "text-green-400" : b.status === "cancelled" ? "text-red-400" : "text-zinc-500"}`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${b.status === "confirmed" ? "bg-green-500" : b.status === "cancelled" ? "bg-red-500" : "bg-zinc-500"}`}
-                        ></span>
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className="text-brand font-heading font-bold py-3 px-4">
-                      {formatPrice(b.estimated_price)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <select
+              aria-label="Assign station"
+              value={pick}
+              onChange={(event) => onPickChange(event.target.value)}
+              disabled={busy}
+              className="min-h-8 max-w-[10rem] truncate rounded-lg border border-white/[0.1] bg-black/30 px-2 text-xs text-slate-200 disabled:opacity-50"
+            >
+              <option value="">Pick station</option>
+              {compatible.map((station) => (
+                <option key={station.id} value={station.id}>{station.name}</option>
+              ))}
+            </select>
+            <button type="button" onClick={onAssign} disabled={busy || !pick} className={`${actionClass} bg-paper text-ink hover:bg-white`}>
+              Assign
+            </button>
+            <button type="button" onClick={onNoShow} disabled={busy} className={`${actionClass} border border-white/[0.1] bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]`}>
+              No-show
+            </button>
+          </>
         )}
       </div>
     </div>

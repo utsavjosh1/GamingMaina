@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { DynamicButton } from "@/components/ui/DynamicButton";
 
 export default function Error({
@@ -15,30 +16,25 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center bg-background text-foreground px-4 text-center">
-      <div className="inline-flex items-center gap-3 px-4 py-2 border border-brand/20 bg-brand/5 backdrop-blur-md mb-8">
-        <span className="w-2 h-2 rounded-full bg-brand animate-pulse"></span>
-        <span className="text-brand font-mono text-xs uppercase tracking-[0.2em] font-bold">
-          SYS_CRITICAL: ERROR
-        </span>
-      </div>
-      <h1 className="text-4xl md:text-6xl font-heading font-black tracking-tighter uppercase mb-6">
-        Something went <span className="text-brand">wrong.</span>
-      </h1>
-      <p className="text-zinc-400 max-w-md mb-12 text-lg">
-        The system encountered an unexpected exception during deployment.
-      </p>
-      <div className="flex flex-col sm:flex-row gap-6">
-        <DynamicButton
-          variant="primary"
-          onClick={() => reset()}
-          className="w-full sm:w-auto"
-        >
-          Attempt Reboot
-        </DynamicButton>
-        <DynamicButton href="/" variant="secondary" className="w-full sm:w-auto">
-          Return to Base
-        </DynamicButton>
+    <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
+      <div className="max-w-md">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ember">Something broke</p>
+        <h1 className="ops-heading mt-3 font-heading text-4xl font-extrabold tracking-tight text-paper sm:text-5xl">
+          That wasn&rsquo;t supposed to happen.
+        </h1>
+        <p className="mt-4 text-[15px] leading-7 text-[var(--gm-muted)]">
+          The page hit an error. Try again, or head back — your bookings are safe.
+        </p>
+        <div className="mt-8 flex flex-col justify-center gap-2.5 sm:flex-row">
+          <DynamicButton variant="primary" size="md" onClick={() => reset()}>
+            <RefreshCw className="size-4" />
+            <span>Try again</span>
+          </DynamicButton>
+          <DynamicButton href="/" variant="secondary" size="md">
+            <ArrowLeft className="size-4" />
+            <span>Back home</span>
+          </DynamicButton>
+        </div>
       </div>
     </div>
   );

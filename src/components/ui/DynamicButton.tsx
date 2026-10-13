@@ -1,53 +1,64 @@
 import Link from "next/link";
 import React from "react";
+import { cn } from "@/lib/utils";
 
 interface DynamicButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "cyan" | "outline" | "danger" | "accent";
+  size?: "sm" | "md" | "lg";
   glow?: boolean;
-  /** When provided, render a real link instead of nesting a button in one. */
+  beam?: boolean;
+  cutCorners?: boolean;
+  /** When provided, render a real link instead of a button */
   href?: string;
 }
 
+/* Ticket buttons: paper for the one primary action, hairlines for the rest.
+   Legacy props (glow/beam/cutCorners/cyan) are accepted and mapped so every
+   caller keeps compiling; they no longer change the rendering. */
 export function DynamicButton({
   children,
   variant = "primary",
-  glow = true,
+  size = "md",
   className = "",
   href,
+  disabled,
   ...props
 }: DynamicButtonProps) {
-  const baseStyle =
-    "relative overflow-hidden inline-flex items-center justify-center px-8 py-3 md:px-10 md:py-4 font-heading font-black tracking-widest uppercase transition-all duration-300 ease-out cursor-pointer group";
-  const clipStyle =
-    "polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)";
-  const colors = variant === "primary"
-    ? "bg-brand text-white hover:bg-[#6c42c2] shadow-[0_0_20px_rgba(136,88,237,0.3)] hover:shadow-[0_0_30px_rgba(136,88,237,0.6)]"
-    : "bg-stealth text-white hover:bg-[#1a212b] border border-zinc-700 hover:border-brand/50";
-  const controlClass = `w-full h-full ${baseStyle} ${colors}`;
-  const content = (
-    <>
-      <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-linear-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg]" />
-      <span className="relative z-10 flex items-center gap-2 group-hover:animate-glow-sway">{children}</span>
-    </>
+  const sizeStyles = {
+    sm: "min-h-9 px-4 py-2 text-[13px]",
+    md: "min-h-11 px-6 py-3 text-sm",
+    lg: "min-h-[3.25rem] px-8 py-3.5 text-[15px]",
+  };
+
+  const variantStyles = {
+    primary: "bg-paper text-ink hover:bg-white",
+    secondary:
+      "border border-white/[0.14] bg-transparent text-paper hover:border-white/30 hover:bg-white/[0.05]",
+    cyan: "bg-ember text-ember-ink hover:bg-ember-strong",
+    outline:
+      "border border-white/[0.14] bg-transparent text-stone-300 hover:border-white/30 hover:text-paper",
+    danger:
+      "border border-red-400/30 bg-red-400/10 text-red-200 hover:bg-red-400/15",
+    accent: "bg-ember text-ember-ink hover:bg-ember-strong",
+  };
+
+  const baseStyle = cn(
+    "inline-flex w-full cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl text-center font-semibold transition-colors duration-200 disabled:pointer-events-none disabled:opacity-50 sm:w-auto",
+    sizeStyles[size],
+    variantStyles[variant],
   );
 
+  if (href) {
+    return (
+      <Link href={href} className={cn(baseStyle, className)}>
+        {children}
+      </Link>
+    );
+  }
   return (
-    <div
-      className={`relative inline-block ${className}`}
-      style={{ filter: glow ? `drop-shadow(0 0 15px rgba(${variant === "primary" ? "136,88,237" : "200,200,200"}, 0.4))` : "none" }}
-    >
-      {href ? (
-        <Link href={href} className={controlClass} style={{ clipPath: clipStyle }}>
-          {content}
-        </Link>
-      ) : (
-        <button className={controlClass} style={{ clipPath: clipStyle }} {...props}>
-          {content}
-        </button>
-      )}
-      <div className={`absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 ${variant === "primary" ? "border-brand" : "border-zinc-500"} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-      <div className={`absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 ${variant === "primary" ? "border-brand" : "border-zinc-500"} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-    </div>
+    <button className={cn(baseStyle, className)} disabled={disabled} {...props}>
+      {children}
+    </button>
   );
 }

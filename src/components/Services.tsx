@@ -1,140 +1,146 @@
-import React from "react";
-import { PremiumCard } from "./ui/PremiumCard";
-import { DynamicButton } from "./ui/DynamicButton";
-import Image from "next/image";
-import { getMediaUrl, mediaPaths } from "@/lib/media";
+"use client";
 
-const services = [
-  {
-    name: "PC-RTX",
-    price: "₹150/hr",
-    type: "COMPETITIVE",
-    image: mediaPaths.spiderman,
-  },
-  {
-    name: "PC-GTX",
-    price: "₹100/hr",
-    type: "CASUAL",
-    image: mediaPaths.gta5,
-  },
-  {
-    name: "PS5",
-    price: "₹200/hr",
-    type: "NEXT-GEN",
-    image: mediaPaths.gow,
-  },
-  {
-    name: "PS4",
-    price: "₹150/hr",
-    type: "CO-OP",
-    image: mediaPaths.rdr2,
-  },
-  {
-    name: "Virtual Reality",
-    price: "₹250/hr",
-    type: "IMMERSIVE",
-    image: mediaPaths.spiderman,
-  },
-  {
-    name: "Racing Wheel",
-    price: "₹180/hr",
-    type: "SIMULATOR",
-    image: mediaPaths.bmw,
-  },
-  {
-    name: "Billiards",
-    price: "₹200/hr",
-    type: "LOUNGE",
-    image: mediaPaths.gta5,
-  },
-  {
-    name: "Air Hockey",
-    price: "₹150/hr",
-    type: "ARCADE",
-    image: mediaPaths.gow,
-  },
-  {
-    name: "Shooting",
-    price: "₹150/hr",
-    type: "CASUAL",
-    image: mediaPaths.rdr2,
-  },
+import React, { useState } from "react";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { SectionHeading } from "./marketing/SectionHeading";
+import { mediaPaths } from "@/lib/media";
+import { stationDetails } from "@/lib/public-content";
+import { cn } from "@/lib/utils";
+
+export interface PublicStationType {
+  id?: string;
+  name: string;
+  category: string;
+  base_price_per_hour: number;
+  image_url: string | null;
+  available?: number;
+  total?: number;
+}
+
+export const fallbackStationTypes: PublicStationType[] = [
+  { name: "PC-RTX", category: "Competitive", base_price_per_hour: 15000, image_url: mediaPaths.spiderman, available: 5, total: 5 },
+  { name: "PC-GTX", category: "Casual", base_price_per_hour: 10000, image_url: mediaPaths.gta5, available: 5, total: 5 },
+  { name: "PS5", category: "Next-gen", base_price_per_hour: 20000, image_url: mediaPaths.gow, available: 3, total: 3 },
+  { name: "PS4", category: "Co-op", base_price_per_hour: 15000, image_url: mediaPaths.rdr2, available: 3, total: 3 },
+  { name: "Virtual Reality", category: "Immersive", base_price_per_hour: 25000, image_url: mediaPaths.spiderman, available: 2, total: 2 },
+  { name: "Racing Wheel", category: "Simulator", base_price_per_hour: 18000, image_url: mediaPaths.bmw, available: 2, total: 2 },
+  { name: "Billiards", category: "Lounge", base_price_per_hour: 20000, image_url: mediaPaths.gta5, available: 2, total: 2 },
+  { name: "Air Hockey", category: "Arcade", base_price_per_hour: 15000, image_url: mediaPaths.gow, available: 0, total: 1 },
+  { name: "Shooting", category: "Casual", base_price_per_hour: 15000, image_url: mediaPaths.rdr2, available: 2, total: 2 },
 ];
 
-export function Services() {
+const stationHardwareSpecs: Record<string, string> = {
+  "PC-RTX": "RTX 40-series · 240Hz Fast IPS · Mechanical keys + 8KHz mouse",
+  "PC-GTX": "GTX 1660 / RTX 3050 · 144Hz · Headset + RGB keys",
+  PS5: "RDNA 2 · 4K 120Hz HDR · DualSense controllers",
+  PS4: "1080p 60Hz · DualShock 4 · Split-screen ready",
+  "Virtual Reality": "6DoF headset · 90Hz OLED · Motion controllers",
+  "Racing Wheel": "Force-feedback wheel · Pedals + paddles · Cockpit seat",
+  Billiards: "Tournament slate · Aramith balls · Overhead lights",
+  "Air Hockey": "High-flow blower · Digital scoreboard · 1v1",
+  Shooting: "Laser tracking · Target screen · Tactical blaster",
+};
+
+function formatPrice(paise: number) {
+  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+}
+
+const categories = [
+  { id: "ALL", label: "All" },
+  { id: "PC", label: "PC" },
+  { id: "CONSOLE", label: "PlayStation" },
+  { id: "SIM", label: "Sim & VR" },
+  { id: "ARCADE", label: "Arcade" },
+];
+
+export function Services({ stationTypes }: { stationTypes?: PublicStationType[] }) {
+  const stations = stationTypes && stationTypes.length > 0 ? stationTypes : fallbackStationTypes;
+  const [activeCategory, setActiveCategory] = useState<string>("ALL");
+
+  const filteredStations = stations.filter((station) => {
+    if (activeCategory === "ALL") return true;
+    if (activeCategory === "PC") return station.name.startsWith("PC");
+    if (activeCategory === "CONSOLE") return station.name.startsWith("PS");
+    if (activeCategory === "SIM") return station.name === "Racing Wheel" || station.name === "Virtual Reality";
+    if (activeCategory === "ARCADE") return ["Billiards", "Air Hockey", "Shooting"].includes(station.name);
+    return true;
+  });
+
   return (
-    <section className="py-32 bg-obsidian relative" id="services">
-      {/* Background divider */}
-      <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-zinc-800 to-transparent"></div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="mb-20 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div>
-            <h2 className="text-4xl md:text-6xl font-heading font-black tracking-tighter text-white mb-4 uppercase">
-              Premier{" "}
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-zinc-500">
-                Stations
-              </span>
-            </h2>
-            <p className="text-zinc-400 max-w-2xl text-lg font-sans">
-              High-performance environments engineered for immersion and
-              competitive edge. Choose your loadout.
-            </p>
-          </div>
-          <div className="hidden md:block">
-            <div className="flex gap-2">
-              <div className="w-16 h-1 bg-brand"></div>
-              <div className="w-2 h-1 bg-brand"></div>
-            </div>
+    <section className="gm-section border-t border-white/[0.06] bg-coal-soft" id="stations" aria-labelledby="stations-heading">
+      <div className="gm-container">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <SectionHeading
+            eyebrow="Stations & rates"
+            title={<span id="stations-heading">Pick a rig. Every hourly rate, up front.</span>}
+            description="Nine setups across PC, console, sim and arcade — tournament specs, zero input lag, pay at the counter."
+          />
+          <div role="tablist" aria-label="Filter stations" className="flex shrink-0 flex-wrap gap-1">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                role="tab"
+                aria-selected={activeCategory === cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={cn(
+                  "whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors",
+                  activeCategory === cat.id ? "bg-white/[0.08] text-paper" : "text-[var(--gm-muted)] hover:text-paper",
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
-          {services.map((svc, idx) => (
-            <PremiumCard
-              key={idx}
-              className="group p-0 overflow-hidden relative"
-            >
-              <div className="absolute inset-0 w-full h-full z-0">
-                <Image
-                  src={getMediaUrl(svc.image)}
-                  alt={svc.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  className="object-cover opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-700"
-                />
-                <div className="absolute inset-0 bg-linear-to-t from-obsidian via-obsidian/60 to-transparent"></div>
-              </div>
-
-              <div className="relative z-10 flex flex-col h-full p-8 min-h-[400px]">
-                <div className="flex justify-between items-start flex-1 mb-8 gap-4 relative">
-                  <div className="flex-1 max-w-[60%]">
-                    <span className="text-xs font-mono text-brand mb-2 block tracking-widest">
-                      {svc.type}
+        <ol className="mt-10 border-t border-white/[0.08]">
+          {filteredStations.map((station, i) => {
+            const details = stationDetails[station.name];
+            const available = station.available ?? 0;
+            const total = station.total ?? 0;
+            const isAvailable = total === 0 || available > 0;
+            return (
+              <li key={station.id ?? station.name}>
+                <Link
+                  href="/book-online"
+                  className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-white/[0.08] py-5 transition-colors hover:bg-white/[0.02] sm:grid-cols-[3rem_1fr_auto_auto] sm:gap-6 sm:px-3"
+                  aria-label={`Reserve ${station.name}, ${formatPrice(station.base_price_per_hour)} per hour`}
+                >
+                  <span className="tnum text-sm text-[var(--gm-subtle)]">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="truncate font-heading text-xl font-bold tracking-tight text-paper sm:text-2xl">
+                        {station.name}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--gm-muted)]">
+                        <span className={cn("size-1.5 rounded-full", isAvailable ? "bg-emerald-400" : "bg-red-400")} aria-hidden="true" />
+                        {total > 0 ? `${available}/${total} free` : station.category}
+                      </span>
                     </span>
-                    <h3 className="text-2xl font-heading font-black text-white tracking-wide uppercase drop-shadow-md wrap-break-word">
-                      {svc.name}
-                    </h3>
-                  </div>
-                  <span className="shrink-0 text-xl font-heading font-bold text-white bg-obsidian/80 backdrop-blur-md px-3 py-1 border border-brand/50 shadow-[0_0_15px_rgba(136,88,237,0.3)] absolute top-0 right-0 z-20">
-                    {svc.price}
+                    <span className="mt-1 block truncate text-[13px] text-[var(--gm-muted)]">
+                      {stationHardwareSpecs[station.name] ?? details?.summary ?? station.category}
+                    </span>
                   </span>
-                </div>
+                  <span className="tnum hidden text-right text-sm font-semibold text-paper sm:block">
+                    {formatPrice(station.base_price_per_hour)}
+                    <span className="block text-xs font-normal text-[var(--gm-subtle)]">per hour</span>
+                  </span>
+                  <span className="grid size-10 place-items-center rounded-xl border border-white/[0.1] text-[var(--gm-muted)] transition-colors group-hover:border-ember/50 group-hover:text-ember-strong">
+                    <ArrowUpRight className="size-4" aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
 
-                <div className="transition-transform duration-500 transform translate-y-4 group-hover:translate-y-0 opacity-80 group-hover:opacity-100">
-                  <DynamicButton
-                    href="/book-online"
-                    variant="secondary"
-                    glow={false}
-                    className="w-full text-xs py-3 backdrop-blur-sm"
-                  >
-                    Reserve Station
-                  </DynamicButton>
-                </div>
-              </div>
-            </PremiumCard>
-          ))}
-        </div>
+        <p className="mt-6 flex flex-wrap items-center justify-between gap-3 text-[13px] text-[var(--gm-muted)]">
+          <span>Multi-hour passes and weekday happy hours auto-apply at the counter.</span>
+          <Link href="/book-online" className="inline-flex items-center gap-1.5 font-semibold text-paper hover:text-ember-strong">
+            Reserve online <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </p>
       </div>
     </section>
   );

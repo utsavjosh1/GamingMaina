@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Outfit, Geist } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
-import { AuthProvider } from "@/components/providers/AuthProvider";
+import { SiteChrome } from "@/components/layout/SiteChrome";
 import { cn } from "@/lib/utils";
 import { getMediaUrl } from "@/lib/media";
 
@@ -78,11 +76,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${outfit.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
       >
-        <AuthProvider>
-          <Navbar />
-          <main className="grow pt-20">{children}</main>
-          <Footer />
-        </AuthProvider>
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

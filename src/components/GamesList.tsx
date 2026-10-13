@@ -1,134 +1,148 @@
-import React from "react";
-import Image from "next/image";
-import { getMediaUrl, mediaPaths } from "@/lib/media";
+"use client";
 
-const gameCategories = [
-  {
-    title: "STORY_MODE // PS5 & PS4",
-    accent: "bg-brand",
-    games: [
-      {
-        name: "God of War Ragnarok",
-        image: mediaPaths.gow,
-      },
-      {
-        name: "GTA 5 / Legacy",
-        image: mediaPaths.gta5,
-      },
-      {
-        name: "Red Dead Redemption 2",
-        image: mediaPaths.rdr2,
-      },
-      {
-        name: "Spider-Man 2",
-        image: mediaPaths.spiderman,
-      },
-      {
-        name: "Black Myth Wukong",
-        image: mediaPaths.bmw,
-      },
-      {
-        name: "More Top Titles...",
-        image: mediaPaths.gow,
-      },
-    ],
-  },
-  {
-    title: "COMPETITIVE // PC & VR",
-    accent: "bg-[#45A29E]",
-    games: [
-      {
-        name: "Valorant",
-        image: mediaPaths.spiderman,
-      },
-      {
-        name: "Counter Strike 2",
-        image: mediaPaths.gta5,
-      },
-      {
-        name: "Call of Duty Warzone",
-        image: mediaPaths.rdr2,
-      },
-      {
-        name: "Beat Saber (VR)",
-        image: mediaPaths.gow,
-      },
-      {
-        name: "PUBG / DOTA 2",
-        image: mediaPaths.spiderman,
-      },
-      {
-        name: "More E-Sports...",
-        image: mediaPaths.bmw,
-      },
-    ],
-  },
-];
+import React, { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, Search } from "lucide-react";
+import { SectionHeading } from "./marketing/SectionHeading";
+import { getMediaUrl } from "@/lib/media";
+import { gameCategories } from "@/lib/public-content";
+import { cn } from "@/lib/utils";
+
+const allGames = gameCategories.flatMap((category) =>
+  category.games.map((game) => ({
+    ...game,
+    label: category.label,
+    categoryTitle: category.title,
+    platform: category.label === "STORY MODE" ? "PS5 / PC" : "PC / Esports",
+  })),
+);
 
 export function GamesList() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("ALL");
+
+  const genres = ["ALL", "Action", "FPS", "Battle Royale", "Open World", "VR", "Action RPG", "MOBA"];
+
+  const filteredGames = allGames.filter((game) => {
+    const matchesGenre = selectedGenre === "ALL" || game.genre.toLowerCase() === selectedGenre.toLowerCase();
+    const matchesSearch =
+      game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      game.genre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      game.label.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesGenre && matchesSearch;
+  });
+
   return (
-    <section
-      className="py-32 bg-obsidian border-t border-stealth relative"
-      id="games"
-    >
-      <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 blur-[120px] pointer-events-none"></div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="mb-20">
-          <h2 className="text-4xl md:text-6xl font-heading font-black tracking-tighter text-white mb-4 uppercase">
-            Active{" "}
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-zinc-500">
-              Arsenal
-            </span>
-          </h2>
-          <p className="text-zinc-400 max-w-2xl text-lg font-sans">
-            Access our complete database of currently deployed titles. Over 50+
-            fully updated games ready to deploy.
-          </p>
+    <section className="gm-section border-t border-white/[0.06]" id="games" aria-labelledby="games-heading">
+      <div className="gm-container">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <SectionHeading
+            eyebrow="Game library"
+            title={<span id="games-heading">Installed, patched, ready to launch.</span>}
+            description="Day-one PS5 blockbusters to 240Hz PC staples — on high-speed NVMe, no downloads, no waiting."
+          />
+          <Link
+            href="/games"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-paper hover:text-ember-strong"
+          >
+            Browse all games <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
         </div>
-        <div className="flex flex-col gap-20">
-          {gameCategories.map((category, idx) => (
-            <div key={idx} className="relative group/category">
-              {/* Category Header */}
-              <div className="flex items-center gap-4 mb-10 border-b border-zinc-800 pb-4">
-                <div
-                  className={`w-3 h-3 ${category.accent} animate-pulse shadow-[0_0_10px_currentColor]`}
-                ></div>
-                <h3 className="text-2xl md:text-3xl font-heading font-bold text-white tracking-widest uppercase">
-                  {category.title}
-                </h3>
-              </div>
+      </div>
 
-              {/* Game Image Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 lg:gap-6">
-                {category.games.map((game, i) => (
-                  <div
-                    key={i}
-                    className="relative aspect-3/4 rounded-sm overflow-hidden border border-zinc-800 group cursor-pointer bg-zinc-900 transition-all duration-300 hover:border-brand hover:-translate-y-2 hover:shadow-[0_10px_30px_-10px_rgba(136,88,237,0.4)]"
-                  >
-                    <Image
-                      src={getMediaUrl(game.image)}
-                      alt={game.name}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
-                      className="object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500 mix-blend-luminosity group-hover:mix-blend-normal"
-                    />
-                    <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent"></div>
-
-                    <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end">
-                      <span className="text-brand font-mono text-[10px] tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
-                        DEPLOY
-                      </span>
-                      <h4 className="text-white font-sans font-bold text-sm leading-tight drop-shadow-md relative z-10">
-                        {game.name}
-                      </h4>
-                    </div>
+      <div className="mt-10 space-y-3">
+        <div className="gm-marquee [--duration:42s] [--gap:0.75rem]" aria-label="Featured titles">
+          {[0, 1].map((track) => (
+            <div key={track} className="gm-marquee-track" aria-hidden={track === 1}>
+              {allGames.map((game) => (
+                <article
+                  key={`${track}-${game.name}`}
+                  className="relative w-52 shrink-0 overflow-hidden rounded-xl border border-white/[0.09]"
+                >
+                  <Image
+                    src={getMediaUrl(game.image)}
+                    alt={`${game.name} artwork`}
+                    width={208}
+                    height={260}
+                    sizes="208px"
+                    className="aspect-[4/5] w-full object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="text-[11px] font-medium text-ember-strong">{game.genre}</p>
+                    <h3 className="mt-0.5 truncate font-heading text-[15px] font-bold text-paper">{game.name}</h3>
                   </div>
-                ))}
-              </div>
+                </article>
+              ))}
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="gm-container mt-10 rounded-2xl border border-white/[0.09] bg-[#14100d] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Filter by genre">
+            {genres.map((genre) => (
+              <button
+                key={genre}
+                role="tab"
+                aria-selected={selectedGenre === genre}
+                onClick={() => setSelectedGenre(genre)}
+                className={cn(
+                  "whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  selectedGenre === genre ? "bg-white/[0.08] text-paper" : "text-[var(--gm-muted)] hover:text-paper",
+                )}
+              >
+                {genre}
+              </button>
+            ))}
+          </div>
+          <div className="relative w-full lg:w-72">
+            <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--gm-subtle)]" aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Search a title…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search games"
+              className="tnum w-full rounded-xl border border-white/[0.1] bg-black/30 py-2.5 pl-10 pr-4 text-sm text-paper placeholder:text-[var(--gm-subtle)] focus:border-ember/60 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <ul className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredGames.map((game) => (
+            <li
+              key={game.name}
+              className="flex items-center gap-3.5 rounded-xl border border-white/[0.07] bg-black/20 p-3 transition-colors hover:border-white/[0.16]"
+            >
+              <span className="relative block size-14 shrink-0 overflow-hidden rounded-lg">
+                <Image src={getMediaUrl(game.image)} alt="" fill sizes="56px" className="object-cover object-center" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-heading text-[15px] font-bold text-paper">{game.name}</span>
+                <span className="mt-0.5 block truncate text-xs text-[var(--gm-muted)]">
+                  {game.genre} · {game.platform}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {filteredGames.length === 0 && (
+          <div className="py-8 text-center">
+            <p className="text-sm text-[var(--gm-muted)]">No titles match “{searchQuery}”.</p>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedGenre("ALL");
+              }}
+              className="mt-2 text-sm font-semibold text-paper underline underline-offset-4"
+            >
+              Reset filters
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

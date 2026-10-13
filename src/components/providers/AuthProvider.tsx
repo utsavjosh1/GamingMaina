@@ -1,8 +1,9 @@
 "use client";
 
 import React, { createContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { DEV_GUEST_EMAIL, DEV_GUEST_NAME, DEV_GUEST_USER_ID } from "@/lib/auth/dev";
 import type { Profile } from "@/lib/supabase/types";
 
 export interface AppUser {
@@ -35,13 +36,14 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [resolvedProfileUserId, setResolvedProfileUserId] = useState<string | null>(null);
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
-  const sessionUser = session?.user;
-  const userId = sessionUser?.id;
-  const loading = isPending || Boolean(userId && resolvedProfileUserId !== userId);
+  const pathname = usePathname();
+  const [sessionUser, setSessionUser] = useState<typeof authClient.$Infer.Session.user | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const devGuestEnabled = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
+  const shouldResolveSession = pathname.startsWith("/book-online") || pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+  const usingDevGuest = devGuestEnabled && !sessionUser;
+  const loading = shouldResolveSession && !usingDevGuest ? sessionLoading : false;
   const user: AppUser | null = sessionUser
     ? {
         id: sessionUser.id,
@@ -51,65 +53,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           avatar_url: sessionUser.image || undefined,
         },
       }
-    : null;
+    : devGuestEnabled
+      ? {
+          id: DEV_GUEST_USER_ID,
+          email: DEV_GUEST_EMAIL,
+          user_metadata: {
+            full_name: DEV_GUEST_NAME,
+          },
+        }
+      : null;
+  // Dev-guest display profile only. The authoritative role is resolved
+  // server-side from memberships via requireStaff()/requireAdmin().
+  const profile = React.useMemo<Profile | null>(
+    () => usingDevGuest
+      ? {
+          id: DEV_GUEST_USER_ID,
+          full_name: DEV_GUEST_NAME,
+          avatar_url: null,
+          phone: null,
+          role: "admin",
+          membership_type: "none",
+          created_at: new Date().toISOString(),
+        }
+      : null,
+    [usingDevGuest],
+  );
 
   useEffect(() => {
     let active = true;
-    if (isPending) return () => { active = false; };
-    if (!userId) {
-      queueMicrotask(() => {
-        if (active) setProfile(null);
+
+    if (devGuestEnabled || !shouldResolveSession) {
+      Promise.resolve().then(() => {
+        if (active) setSessionUser(null);
       });
       return () => { active = false; };
     }
-    void fetch("/api/profile", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        const result = (await response.json()) as {
-          profile: {
-            id: string;
-            fullName: string | null;
-            avatarUrl: string | null;
-            phone: string | null;
-            role: Profile["role"];
-            membershipType: Profile["membership_type"];
-            createdAt: Date | string;
-          } | null;
-        };
-        return result.profile;
-      })
-      .then((row) => {
-        if (!active) return;
-        setProfile(
-          row
-            ? {
-                id: row.id,
-                full_name: row.fullName,
-                avatar_url: row.avatarUrl,
-                phone: row.phone,
-                role: row.role,
-                membership_type: row.membershipType,
-                created_at: new Date(row.createdAt).toISOString(),
-              }
-            : null,
-        );
+
+    Promise.resolve().then(() => {
+      if (active) setSessionLoading(true);
+    });
+    authClient.getSession()
+      .then(({ data }) => {
+        if (active) setSessionUser(data?.user ?? null);
       })
       .catch(() => {
-        if (active) setProfile(null);
+        if (active) setSessionUser(null);
       })
       .finally(() => {
-        if (active) setResolvedProfileUserId(userId!);
+        if (active) setSessionLoading(false);
       });
 
-    return () => {
-      active = false;
-    };
-  }, [isPending, userId]);
+    return () => { active = false; };
+  }, [devGuestEnabled, shouldResolveSession]);
 
   const signInWithGoogle = async (redirect?: string) => {
     const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
       ? redirect
       : "/";
+    if (devGuestEnabled) {
+      router.push(safeRedirect);
+      router.refresh();
+      return;
+    }
     const { error } = await authClient.signIn.social({
       provider: "google",
       callbackURL: safeRedirect,
@@ -118,9 +123,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (devGuestEnabled && !sessionUser) {
+      router.push("/");
+      router.refresh();
+      return;
+    }
     const { error } = await authClient.signOut();
     if (error) throw error;
-    setProfile(null);
     router.push("/");
     router.refresh();
   };

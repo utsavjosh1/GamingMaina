@@ -1,43 +1,74 @@
-import React from "react";
+import { ArrowRight, Clock, MapPin, Wallet } from "lucide-react";
 import { DynamicButton } from "@/components/ui/DynamicButton";
+import { businessInfo } from "@/lib/public-content";
 
 export const metadata = {
-  title: "Comms Link | Gaming Mania Delhi",
-  description: "Contact us for bookings and inquiries.",
+  title: "Contact & Location | Gaming Mania Delhi (Kalkaji)",
+  description: "Find Gaming Mania in Kalkaji, New Delhi. View operating hours, directions, and reserve stations online.",
 };
+
+const cards = [
+  {
+    icon: MapPin,
+    title: "Getting here",
+    lines: [businessInfo.address, "Near Kalkaji Mandir metro · South Delhi"],
+  },
+  {
+    icon: Clock,
+    title: "Hours",
+    lines: [`Open daily · ${businessInfo.hours}`, "Delhi local time (IST), all 7 days"],
+  },
+  {
+    icon: Wallet,
+    title: "Paying",
+    lines: ["UPI, cash & cards at the counter", "No advance payment · 15-min hold"],
+  },
+];
 
 export default function ContactPage() {
   return (
-    <div className="min-h-[70vh] bg-obsidian flex flex-col items-center justify-center text-center px-4 relative overflow-hidden">
-      {/* Background accents */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-[400px] bg-brand/10 blur-[100px] pointer-events-none"></div>
-
-      <div className="max-w-4xl relative z-10 py-20">
-        <h1 className="text-5xl md:text-7xl font-heading font-black tracking-tighter text-white mb-6 uppercase">
-          Open{" "}
-          <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-zinc-500">
-            Comms
-          </span>
+    <div className="pb-20 pt-24 lg:pt-28">
+      <div className="gm-container max-w-5xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ember">Visit us</p>
+        <h1 className="ops-heading mt-3 max-w-[20ch] font-heading text-4xl font-extrabold tracking-tight text-paper sm:text-6xl">
+          Come down to Kalkaji.
         </h1>
-        <p className="text-xl text-zinc-400 mb-12 font-sans max-w-2xl mx-auto leading-relaxed">
-          Need to secure rigs for a squad? Questions about tournament ladders?
-          Initialize contact via our direct secure channels below.
+        <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[var(--gm-muted)] sm:text-base">
+          Reserve online before you travel and your rig is waiting — no queue, no guesswork.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto mb-16">
-          <div className="bg-stealth/50 border border-zinc-800 p-8 flex flex-col items-center justify-center backdrop-blur-sm">
-            <span className="text-brand font-mono text-xs uppercase tracking-widest mb-2">Location</span>
-            <span className="text-2xl font-heading font-bold text-white">Kalkaji, Delhi</span>
-          </div>
-          <div className="bg-stealth/50 border border-zinc-800 p-8 flex flex-col items-center justify-center backdrop-blur-sm">
-            <span className="text-brand font-mono text-xs uppercase tracking-widest mb-2">Contact</span>
-            <span className="text-lg font-heading font-bold text-zinc-400">Contact details coming soon</span>
-          </div>
+        <div className="mt-10 grid gap-3 md:grid-cols-3">
+          {cards.map((card) => (
+            <div key={card.title} className="rounded-2xl border border-white/[0.09] bg-[#14100d] p-6">
+              <card.icon className="size-5 text-ember" aria-hidden="true" />
+              <h2 className="mt-4 font-heading text-lg font-bold tracking-tight text-paper">{card.title}</h2>
+              {card.lines.map((line) => (
+                <p key={line} className="mt-1.5 text-sm leading-6 text-[var(--gm-muted)]">{line}</p>
+              ))}
+            </div>
+          ))}
         </div>
 
-        <DynamicButton href="/" variant="secondary" glow={false}>
-          Return to Base
-        </DynamicButton>
+        <div className="mt-6 rounded-2xl bg-ember p-6 text-ember-ink sm:p-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="ops-heading font-heading text-2xl font-extrabold tracking-tight">
+                Book first, travel second.
+              </h2>
+              <p className="mt-1 text-sm font-medium">Your station is held for 15 minutes past start time.</p>
+            </div>
+            <div className="flex flex-col gap-2.5 sm:flex-row">
+              <DynamicButton href="/book-online" variant="accent" size="md" className="!bg-ember-ink !text-paper">
+                <span>Reserve a station</span>
+                <ArrowRight className="size-4" />
+              </DynamicButton>
+              <DynamicButton href={businessInfo.mapUrl} variant="secondary" size="md" className="!border-ember-ink/25 !text-ember-ink">
+                <MapPin className="size-4" />
+                <span>Google Maps</span>
+              </DynamicButton>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
