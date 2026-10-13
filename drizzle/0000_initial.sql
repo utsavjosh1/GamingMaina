@@ -249,35 +249,49 @@ ALTER TABLE public.pricing_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public."user", public."session", public."account", public."verification",
-  public.profiles, public.station_types, public.stations, public.bookings,
-  public.sessions, public.pricing_rules, public.payments, public.audit_logs
-FROM anon, authenticated;
+-- Fresh-DB safe: the anon/authenticated roles exist on Supabase, not on
+-- vanilla Postgres (CI, local Docker). Live already applied this file, so
+-- the guard changes nothing there — it only unbreaks fresh bootstraps.
+DO $do$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('anon', 'authenticated')) THEN
+    REVOKE ALL ON public."user", public."session", public."account", public."verification",
+      public.profiles, public.station_types, public.stations, public.bookings,
+      public.sessions, public.pricing_rules, public.payments, public.audit_logs
+    FROM anon, authenticated;
+  ELSE
+    RAISE NOTICE 'skipping REVOKE: anon/authenticated roles absent (non-Supabase DB)';
+  END IF;
+END $do$;
 
 --> statement-breakpoint
 -- Public, cacheable site media served through Supabase Storage/CDN.
 -- Uploads are intentionally not public: deployment tooling uses the secret key.
 
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'media',
-  'media',
-  true,
-  10485760,
-  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon']
-)
-ON CONFLICT (id) DO UPDATE
-SET public = EXCLUDED.public,
-    file_size_limit = EXCLUDED.file_size_limit,
-    allowed_mime_types = EXCLUDED.allowed_mime_types;
-
--- Supabase owns storage.objects and already enables RLS on it; the app DB role
--- may create policies, but cannot ALTER the Storage-managed table itself.
-DROP POLICY IF EXISTS "Public media is readable" ON storage.objects;
-CREATE POLICY "Public media is readable"
-  ON storage.objects FOR SELECT
-  TO public
-  USING (bucket_id = 'media');
+-- Fresh-DB safe: storage.* is Supabase-managed and absent on vanilla
+-- Postgres. Same note as above — live is unaffected.
+DO $do$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage') THEN
+    INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    VALUES (
+      'media',
+      'media',
+      true,
+      10485760,
+      ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon']
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET public = EXCLUDED.public,
+        file_size_limit = EXCLUDED.file_size_limit,
+        allowed_mime_types = EXCLUDED.allowed_mime_types;
+    DROP POLICY IF EXISTS "Public media is readable" ON storage.objects;
+    CREATE POLICY "Public media is readable"
+      ON storage.objects FOR SELECT
+      TO public
+      USING (bucket_id = 'media');
+  ELSE
+    RAISE NOTICE 'skipping storage bucket: storage schema absent (non-Supabase DB)';
+  END IF;
+END $do$;
 
 -- No INSERT/UPDATE/DELETE policy is granted to anon or authenticated. Asset
 -- deployment runs outside the browser with SUPABASE_SECRET_KEY, which
