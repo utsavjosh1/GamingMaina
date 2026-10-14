@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
-import { DynamicButton } from "@/components/ui/DynamicButton";
+import { ArrowRight, CalendarDays } from "lucide-react";
 import { cancelBooking } from "@/app/book-online/actions";
 import { toDelhiInstant, formatDelhiDate } from "@/lib/dates";
 import type { Booking } from "@/lib/supabase/types";
@@ -22,187 +21,168 @@ export function DashboardClient({ initialBookings }: DashboardClientProps) {
     try {
       await cancelBooking(id);
       setBookings((prev) =>
-        prev.map((b) =>
-          b.id === id ? { ...b, status: "cancelled" as const } : b,
-        ),
+        prev.map((b) => (b.id === id ? { ...b, status: "cancelled" as const } : b)),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to cancel booking");
+      setError(err instanceof Error ? err.message : "Unable to cancel booking. Try again or ask the counter for help.");
     } finally {
       setCancellingId(null);
     }
   };
 
-  const formatPrice = (paise: number) =>
-    `₹${(paise / 100).toLocaleString("en-IN")}`;
-
+  const formatPrice = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
   const formatDate = (dateStr: string) =>
     formatDelhiDate(dateStr, { weekday: "short", day: "numeric", month: "short" });
 
-  const statusConfig: Record<string, { color: string; label: string }> = {
-    confirmed: { color: "bg-green-500", label: "Confirmed" },
-    checked_in: { color: "bg-blue-500", label: "Checked In" },
-    completed: { color: "bg-zinc-500", label: "Completed" },
-    cancelled: { color: "bg-red-500", label: "Cancelled" },
-    no_show: { color: "bg-yellow-500", label: "No Show" },
-    expired: { color: "bg-orange-500", label: "Expired" },
-  };
-
   const upcoming = bookings.filter(
-    (b) =>
-      b.status === "confirmed" &&
-      toDelhiInstant(b.booking_date, b.end_time) > new Date(),
+    (b) => b.status === "confirmed" && toDelhiInstant(b.booking_date, b.end_time) > new Date(),
   );
   const past = bookings.filter(
-    (b) =>
-      b.status !== "confirmed" ||
-      toDelhiInstant(b.booking_date, b.end_time) <= new Date(),
+    (b) => b.status !== "confirmed" || toDelhiInstant(b.booking_date, b.end_time) <= new Date(),
   );
 
   return (
-    <div className="min-h-[80vh] pt-32 pb-20 bg-obsidian relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-brand/5 blur-[150px] pointer-events-none"></div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {error && <div role="alert" className="mb-4 border border-red-500/30 bg-red-500/10 p-3 font-mono text-sm text-red-400">{error}</div>}
-        <div className="flex items-center justify-between mb-12">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="h-px w-12 bg-brand"></span>
-              <span className="text-brand font-mono text-sm tracking-widest uppercase">
-                Command Center
-              </span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-heading font-black tracking-tighter text-white uppercase">
-              My{" "}
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-zinc-500">
-                Bookings
-              </span>
-            </h1>
-          </div>
-          <DynamicButton href="/book-online" variant="primary" className="text-sm">
-            + New Booking
-          </DynamicButton>
+    <div className="mx-auto w-full max-w-3xl px-4 pb-20 pt-28">
+      {error && (
+        <div role="alert" className="mb-5 rounded-[12px] border border-red-400/25 bg-red-500/[0.08] p-4 text-sm text-red-100">
+          {error}
         </div>
+      )}
 
-        {/* Upcoming */}
-        <div className="mb-16">
-          <h2 className="text-lg font-heading font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            Upcoming ({upcoming.length})
-          </h2>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="ops-heading text-3xl font-semibold tracking-tight text-white">
+            Your bookings
+          </h1>
+          <p className="mt-1.5 text-sm leading-6 text-[var(--erp-muted)]">
+            {upcoming.length === 0
+              ? "Nothing reserved yet. Book a setup and pay at the counter when you arrive."
+              : `${upcoming.length} upcoming reservation${upcoming.length === 1 ? "" : "s"} · pay at the counter on arrival.`}
+          </p>
+        </div>
+        <a
+          href="/book-online"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-[10px] bg-paper px-5 text-sm font-semibold text-ink transition hover:bg-white"
+        >
+          New reservation
+        </a>
+      </div>
 
-          {upcoming.length === 0 ? (
-            <div className="bg-stealth/20 border border-zinc-800 p-8 text-center">
-              <p className="text-zinc-500 font-heading">
-                No upcoming bookings.
-              </p>
-              <Link
-                href="/book-online"
-                className="text-brand text-sm font-heading font-bold hover:underline mt-2 inline-block"
+      <section aria-label="Upcoming reservations" className="mt-8">
+        <h2 className="text-sm font-semibold text-slate-200">
+          Upcoming
+        </h2>
+        {upcoming.length === 0 ? (
+          <div className="mt-3 rounded-[14px] border border-dashed border-white/[0.12] bg-black/20 p-8 text-center">
+            <CalendarDays className="mx-auto size-8 text-slate-600" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-slate-200">No upcoming reservations</p>
+            <p className="mx-auto mt-1 max-w-[40ch] text-[13px] leading-5 text-[var(--erp-muted)]">
+              Lock in a PC, PS5 or racing rig before you visit — weekends fill up fast.
+            </p>
+            <a
+              href="/book-online"
+              className="mt-4 inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.07]"
+            >
+              Book a session <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+          </div>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {upcoming.map((booking) => (
+              <li
+                key={booking.id}
+                className="ops-surface rounded-[14px] p-4 sm:p-5"
               >
-                Book a session →
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {upcoming.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="bg-stealth/20 border border-zinc-800 hover:border-brand/30 transition-colors p-6 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-6">
-                    <div className="hidden md:flex flex-col items-center bg-brand/10 border border-brand/20 px-4 py-3 min-w-[80px]">
-                      <span className="text-brand font-heading font-black text-2xl leading-none">
-                        {formatDelhiDate(booking.booking_date, { day: "numeric" })}
-                      </span>
-                      <span className="text-zinc-400 font-mono text-[10px] uppercase">
-                        {formatDelhiDate(booking.booking_date, { month: "short" })}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <div className="grid w-[64px] shrink-0 place-items-center rounded-[10px] border border-white/[0.08] bg-black/20 px-2 py-2.5 text-center">
+                      <span>
+                        <span className="tnum block text-xl font-semibold leading-none text-white">
+                          {formatDelhiDate(booking.booking_date, { day: "numeric" })}
+                        </span>
+                        <span className="mt-1 block text-[11px] text-[var(--erp-muted)]">
+                          {formatDelhiDate(booking.booking_date, { month: "short" })}
+                        </span>
                       </span>
                     </div>
-                    <div>
-                      <h3 className="text-white font-heading font-bold text-lg">
-                        {booking.station_type?.name || "Station"}
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-[13px]">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-200">
+                          <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                          Confirmed
+                        </span>
+                        <span className="tnum text-xs text-[var(--erp-subtle)]">
+                          {booking.id.slice(0, 8).toUpperCase()}
+                        </span>
+                      </p>
+                      <h3 className="mt-1.5 truncate text-[17px] font-semibold tracking-tight text-white">
+                        {booking.station_type?.name || "Gaming station"}
                       </h3>
-                      <p className="text-zinc-400 font-mono text-sm mt-1">
-                        {formatDate(booking.booking_date)} •{" "}
-                        {booking.start_time.slice(0, 5)} –{" "}
-                        {booking.end_time.slice(0, 5)} •{" "}
-                        {booking.duration_hours}h
+                      <p className="tnum mt-0.5 text-[13px] text-[var(--erp-muted)]">
+                        {formatDate(booking.booking_date)} · {booking.start_time.slice(0, 5)}–{booking.end_time.slice(0, 5)} · {booking.duration_hours}h
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-brand font-heading font-bold text-xl">
-                      {formatPrice(booking.estimated_price)}
-                    </span>
+                  <div className="flex shrink-0 items-center justify-between gap-4 border-t border-white/[0.06] pt-3 sm:flex-col sm:items-end sm:justify-center sm:border-0 sm:pt-0">
+                    <p className="text-right leading-tight">
+                      <span className="tnum block text-lg font-semibold text-white">
+                        {formatPrice(booking.estimated_price)}
+                      </span>
+                      <span className="block text-[11px] text-[var(--erp-subtle)]">Pay at counter</span>
+                    </p>
                     <button
                       onClick={() => handleCancel(booking.id)}
                       disabled={cancellingId === booking.id}
-                      className="text-red-400/60 hover:text-red-400 text-xs font-mono uppercase tracking-widest transition-colors disabled:opacity-50 cursor-pointer"
+                      className="inline-flex min-h-9 items-center whitespace-nowrap rounded-[10px] border border-red-400/25 bg-red-500/10 px-3.5 text-[13px] font-semibold text-red-200 transition hover:bg-red-500/15 disabled:opacity-50"
                     >
-                      {cancellingId === booking.id ? "..." : "Cancel"}
+                      {cancellingId === booking.id ? "Cancelling…" : "Cancel"}
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-        {/* Past */}
-        <div>
-          <h2 className="text-lg font-heading font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-zinc-500"></span>
-            History ({past.length})
-          </h2>
-
-          {past.length === 0 ? (
-            <div className="bg-stealth/20 border border-zinc-800 p-8 text-center">
-              <p className="text-zinc-500 font-heading">
-                No booking history yet.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {past.map((booking) => {
-                const config = statusConfig[booking.status] || {
-                  color: "bg-zinc-500",
-                  label: booking.status,
-                };
-                return (
-                  <div
-                    key={booking.id}
-                    className="bg-stealth/10 border border-zinc-800/50 p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 opacity-60"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${config.color}`}
-                        ></span>
-                        <span className="text-zinc-400 font-mono text-[10px] uppercase tracking-widest">
-                          {config.label}
-                        </span>
-                      </div>
-                      <span className="text-white font-heading font-bold">
-                        {booking.station_type?.name || "Station"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-6 text-zinc-500 font-mono text-sm">
-                      <span>
-                        {formatDate(booking.booking_date)} •{" "}
-                        {booking.start_time.slice(0, 5)} –{" "}
-                        {booking.end_time.slice(0, 5)}
-                      </span>
-                      <span>{formatPrice(booking.estimated_price)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <section aria-label="Booking history" className="mt-10">
+        <h2 className="text-sm font-semibold text-[var(--erp-subtle)]">
+          History {past.length > 0 && <span className="tnum font-normal">· {past.length}</span>}
+        </h2>
+        {past.length === 0 ? (
+          <p className="mt-3 rounded-[12px] border border-white/[0.06] bg-black/10 p-4 text-center text-[13px] text-[var(--erp-subtle)]">
+            No past visits yet — your history appears here after your first session.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {past.map((booking) => (
+              <li
+                key={booking.id}
+                className="flex flex-col gap-1.5 rounded-[12px] border border-white/[0.06] bg-black/20 p-3.5 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              >
+                <p className="min-w-0 truncate text-slate-300">
+                  <span className="font-medium text-slate-200">{booking.station_type?.name || "Station"}</span>
+                  <span className="text-[var(--erp-subtle)]"> · {historyLabel(booking.status)}</span>
+                </p>
+                <p className="tnum shrink-0 text-xs text-[var(--erp-muted)]">
+                  {formatDate(booking.booking_date)} · {booking.start_time.slice(0, 5)} · {formatPrice(booking.estimated_price)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
+}
+
+function historyLabel(status: string) {
+  switch (status) {
+    case "completed": return "Completed";
+    case "cancelled": return "Cancelled";
+    case "checked_in": return "Played";
+    case "no_show": return "No-show";
+    case "expired": return "Expired";
+    default: return status.replace(/_/g, " ");
+  }
 }

@@ -1,65 +1,58 @@
-import React from "react";
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
+import { DynamicButton } from "./ui/DynamicButton";
+import { SectionHeading } from "./marketing/SectionHeading";
 import { getMediaUrl, mediaPaths } from "@/lib/media";
+import { businessInfo, venueBenefits } from "@/lib/public-content";
 
 export function AboutSection() {
   return (
-    <section
-      className="py-32 bg-stealth border-t border-zinc-900 relative overflow-hidden"
-      id="about"
-    >
-      {/* Tech accents */}
-      <div className="absolute top-0 right-10 w-px h-full bg-linear-to-b from-brand/50 via-transparent to-transparent"></div>
-      <div className="absolute top-20 right-10 w-2 h-2 bg-brand translate-x-[0.5px] animate-pulse"></div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          {/* Content Side */}
-          <div className="border-l-4 border-brand pl-8 md:pl-12">
-            <h2 className="text-sm font-mono font-bold tracking-[0.3em] text-brand uppercase mb-6 flex items-center gap-4">
-              <span className="w-8 h-px bg-brand"></span>
-              SYS_INIT: ORIGIN
-            </h2>
-            <h3 className="text-4xl md:text-6xl font-heading font-black tracking-tighter text-white mb-10 leading-[1.1] uppercase">
-              Built for Gamers.
-              <br />
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-[#d4b3ff]">
-                Zero Fake Hype.
-              </span>
-            </h3>
-            <div className="space-y-6 text-lg md:text-xl text-zinc-300 font-sans leading-relaxed">
-              <p>
-                Founded in 2018, Gaming Mania was born from a simple mission: to
-                create a sanctuary for gamers who demand excellence. We&apos;ve
-                engineered an environment where technology meets comfort,
-                allowing you to focus entirely on your game.
-              </p>
-              <p className="text-white border-l-2 border-brand/50 pl-6 py-2 my-8 font-medium bg-linear-to-r from-brand/10 to-transparent">
-                Whether you&apos;re a competitive pro pushing for the next rank or a
-                group of friends looking for the ultimate co-op experience, our
-                stations are optimized for your victory.
-              </p>
-              <p>
-                Our commitment hasn&apos;t wavered since day one: deliver
-                bleeding-edge hardware, maintain a secure and high-speed
-                network, and foster a community that feels like home the moment
-                you step through our doors.
-              </p>
-            </div>
+    <section className="gm-section border-t border-white/[0.06]" id="about" aria-labelledby="about-heading">
+      <div className="gm-container grid gap-10 lg:grid-cols-2 lg:gap-14">
+        <div>
+          <SectionHeading
+            eyebrow="Since 2018"
+            title={<span id="about-heading">A real arena, run by people who play.</span>}
+            description="Gaming Mania grew from a few PC rigs in Kalkaji into South Delhi's home for ranked grinds, console nights, racing time trials and VR sessions."
+          />
+          <p className="mt-5 max-w-[60ch] text-[15px] leading-7 text-[var(--gm-muted)]">
+            Climb Valorant at 240Hz, run story campaigns on PS5, drift the racing sim, or hang around
+            the pool table between matches — the arena is built for how squads actually spend an evening.
+          </p>
+          <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
+            <DynamicButton href="/book-online" variant="primary" size="md">
+              <span>Reserve a station</span>
+              <ArrowRight className="size-4" />
+            </DynamicButton>
+            <DynamicButton href={businessInfo.mapUrl} variant="secondary" size="md">
+              <span>Get directions</span>
+            </DynamicButton>
           </div>
 
-          {/* Image Side */}
-          <div className="relative h-[600px] w-full rounded-tr-[100px] rounded-bl-[100px] overflow-hidden border border-zinc-800 shadow-[0_0_50px_rgba(136,88,237,0.15)] group">
-            <Image
-              src={getMediaUrl(mediaPaths.rdr2)}
-              alt="Premium Gaming Experience"
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-cover transition-transform duration-1000 group-hover:scale-110"
-            />
-            <div className="absolute inset-0 bg-linear-to-tr from-obsidian/80 via-transparent to-brand/20"></div>
-          </div>
+          <dl className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/[0.09] bg-white/[0.06]">
+            {venueBenefits.slice(0, 4).map((benefit) => (
+              <div key={benefit.title} className="bg-[#14100d] p-5">
+                <dd className="tnum font-heading text-2xl font-extrabold tracking-tight text-paper">{benefit.stat}</dd>
+                <dt className="mt-1 text-[13px] font-semibold text-paper">{benefit.title}</dt>
+                <dd className="mt-0.5 text-xs leading-5 text-[var(--gm-muted)]">{benefit.body}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
+
+        <figure className="relative overflow-hidden rounded-2xl border border-white/[0.09] lg:sticky lg:top-24 lg:self-start">
+          <Image
+            src={getMediaUrl(mediaPaths.rdr2)}
+            alt="Evening session inside the Gaming Mania lounge in Kalkaji"
+            width={900}
+            height={1000}
+            sizes="(max-width: 1024px) 100vw, 45vw"
+            className="aspect-[4/4.4] w-full object-cover object-center sm:aspect-[16/12] lg:aspect-[4/4.4]"
+          />
+          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-5 pb-4 pt-12 text-sm font-medium text-paper">
+            Friday nights at Kalkaji — ranked grinds up front, story mode on the sofas.
+          </figcaption>
+        </figure>
       </div>
     </section>
   );

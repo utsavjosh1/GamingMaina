@@ -1,11 +1,18 @@
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
+import { getDevAuthBypassProfile, isDevAuthBypassEnabled } from "@/lib/auth/dev";
 
 export async function GET() {
+  if (isDevAuthBypassEnabled()) {
+    return NextResponse.json({ profile: getDevAuthBypassProfile() });
+  }
+
+  const [{ eq }, { auth }, { db }, { profiles }] = await Promise.all([
+    import("drizzle-orm"),
+    import("@/lib/auth"),
+    import("@/lib/db"),
+    import("@/lib/db/schema"),
+  ]);
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ profile: null }, { status: 401 });
 

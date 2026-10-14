@@ -31,7 +31,6 @@ export type PricingRuleType =
 // ─── Row Types ───────────────────────────────────────────
 
 export interface StationType {
-  [key: string]: unknown;
   id: string;
   name: string;
   category: string;
@@ -41,7 +40,6 @@ export interface StationType {
 }
 
 export interface Station {
-  [key: string]: unknown;
   id: string;
   station_type_id: string;
   name: string;
@@ -54,7 +52,6 @@ export interface Station {
 }
 
 export interface Profile {
-  [key: string]: unknown;
   id: string;
   full_name: string | null;
   avatar_url: string | null;
@@ -65,7 +62,6 @@ export interface Profile {
 }
 
 export interface Booking {
-  [key: string]: unknown;
   id: string;
   user_id: string;
   station_type_id: string;
@@ -85,7 +81,6 @@ export interface Booking {
 }
 
 export interface Session {
-  [key: string]: unknown;
   id: string;
   booking_id: string | null;
   user_id: string | null;
@@ -103,7 +98,6 @@ export interface Session {
 }
 
 export interface PricingRule {
-  [key: string]: unknown;
   id: string;
   station_type_id: string | null;
   name: string;
@@ -117,7 +111,6 @@ export interface PricingRule {
 }
 
 export interface Payment {
-  [key: string]: unknown;
   id: string;
   booking_id: string | null;
   session_id: string | null;
@@ -134,19 +127,18 @@ export interface Payment {
   collector?: Profile;
 }
 
-export type AdminStation = Station & { station_type: StationType | null };
-export type AdminBooking = Booking & {
+export type AdminStation = Omit<Station, "station_type"> & { station_type: StationType | null };
+export type AdminBooking = Omit<Booking, "station_type" | "station" | "profile"> & {
   station_type: StationType | null;
   station: Station | null;
   profile: Profile | null;
 };
-export type AdminSession = Session & {
+export type AdminSession = Omit<Session, "station" | "profile"> & {
   station: AdminStation | null;
   profile: Profile | null;
 };
 
 export interface AuditLog {
-  [key: string]: unknown;
   id: string;
   actor_id: string | null;
   action: string;

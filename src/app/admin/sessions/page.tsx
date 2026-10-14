@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Pause, Play, Plus, ReceiptText, X } from "lucide-react";
 import {
   getActiveSessions,
   getAllStations,
@@ -9,6 +10,9 @@ import {
   pauseSession,
   resumeSession,
 } from "../actions";
+import { useOpsPolling } from "@/features/operations/components/useOpsPolling";
+import { OpsAlert, OpsEmpty } from "@/components/ui/OpsPrimitives";
+import { cn } from "@/lib/utils";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Record<string, unknown>[]>([]);
@@ -17,9 +21,10 @@ export default function SessionsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showStartModal, setShowStartModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const startKeyRef = React.useRef(crypto.randomUUID());
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [sessionsData, stationsData] = await Promise.all([
         getActiveSessions(),
@@ -32,19 +37,13 @@ export default function SessionsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void loadData();
-    // Refresh data and timers without calculating time during render.
-    const interval = setInterval(() => void loadData(), 30000);
-    const clock = setInterval(() => setNow(Date.now()), 60000);
-    setNow(Date.now());
-    return () => {
-      clearInterval(interval);
-      clearInterval(clock);
-    };
   }, []);
+
+  // Drizzle has no realtime channel: poll Server Actions, paused when hidden.
+  useOpsPolling(loadData, 30_000, {
+    clockMs: 60_000,
+    onClock: () => setNow(Date.now()),
+  });
 
   useEffect(() => {
     if (!showStartModal) return;
@@ -66,7 +65,8 @@ export default function SessionsPage() {
     setActionLoading(stationId);
     setError(null);
     try {
-      await startSession(stationId);
+      await startSession(stationId, undefined, startKeyRef.current);
+      startKeyRef.current = crypto.randomUUID();
       await loadData();
       setShowStartModal(false);
     } catch (err) {
@@ -78,7 +78,7 @@ export default function SessionsPage() {
   const handleEnd = async (sessionId: string) => {
     setActionLoading(sessionId);
     try {
-      const result = await endSession(sessionId);
+      const result = await endSession(sessionId, `session-end:${sessionId}`);
       alert(
         `Session ended: ${result.stationName}\nDuration: ${result.totalMinutes} min\nBill: ${formatPrice(result.totalPrice)}`,
       );
@@ -106,48 +106,53 @@ export default function SessionsPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-zinc-900 rounded"></div>
-          ))}
-        </div>
+      <div className="mx-auto w-full max-w-[88rem] animate-pulse space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-24 rounded-[12px] bg-white/[0.04]" />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      {error && <div role="alert" className="mb-6 border border-red-500/30 bg-red-500/10 p-3 font-mono text-sm text-red-400">{error}</div>}
-      {showStartModal && <div className="sr-only" aria-live="polite">Start session dialog opened</div>}
-      <div className="flex items-center justify-between mb-10">
+    <div className="mx-auto w-full max-w-[88rem] space-y-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-black text-white uppercase tracking-tight">
-            Session Manager
-          </h1>
-          <p className="text-zinc-500 font-mono text-sm mt-1">
-            Start, pause, and end gaming sessions
+          <p className="text-[13px] text-[var(--erp-muted)]">
+            {sessions.length} live · {availableStations.length} stations free
           </p>
+          <h1 className="ops-heading mt-1 text-2xl font-semibold tracking-tight text-white">Sessions</h1>
         </div>
         <button
           onClick={() => setShowStartModal(true)}
-          className="bg-brand hover:bg-brand/90 text-white font-heading font-bold text-sm tracking-widest uppercase px-6 py-3 transition-all hover:shadow-[0_0_20px_rgba(136,88,237,0.3)] cursor-pointer"
+          className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-paper px-4 text-sm font-semibold text-ink transition hover:bg-white"
         >
-          + Walk-in Session
+          <Plus className="size-4" aria-hidden="true" />
+          Walk-in session
         </button>
       </div>
 
-      {/* Active Sessions */}
-      <div className="space-y-4">
+      {error && (
+        <OpsAlert tone="error" title="Couldn't update sessions.">
+          {error}
+        </OpsAlert>
+      )}
+      {showStartModal && <p className="sr-only" aria-live="polite">Start session dialog opened</p>}
+
+      <div className="space-y-3">
         {sessions.length === 0 ? (
-          <div className="bg-stealth/20 border border-zinc-800 p-12 text-center">
-            <p className="text-zinc-500 font-heading text-lg">
-              No active sessions
-            </p>
-            <p className="text-zinc-600 font-mono text-sm mt-2">
-              Start a walk-in session or wait for a booking check-in
-            </p>
-          </div>
+          <OpsEmpty
+            title="No live sessions"
+            description="Start a walk-in session, or wait for the next booking check-in."
+            action={
+              <button
+                onClick={() => setShowStartModal(true)}
+                className="inline-flex min-h-10 items-center whitespace-nowrap rounded-[10px] bg-paper px-4 text-sm font-semibold text-ink transition hover:bg-white"
+              >
+                Start a session
+              </button>
+            }
+          />
         ) : (
           sessions.map((session) => {
             const s = session as {
@@ -177,97 +182,99 @@ export default function SessionsPage() {
               (s.station?.station_type?.base_price_per_hour || 0) *
                 (billableMinutes / 60),
             );
+            const busy = actionLoading === s.id;
 
             return (
-              <div
+              <article
                 key={s.id}
-                className="bg-stealth/20 border border-zinc-800 p-6"
+                className="ops-surface rounded-[12px] p-4"
               >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-6">
-                    <div
-                      className={`w-4 h-4 rounded-full ${s.status === "active" ? "bg-green-500 animate-pulse" : "bg-yellow-500"}`}
-                    ></div>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-white font-heading font-bold text-lg">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-center gap-3.5">
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        s.status === "active" ? "animate-pulse bg-emerald-400" : "bg-amber-400",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                        <span className="truncate text-[15px] font-semibold text-white">
                           {s.station?.name}
                         </span>
-                        <span className="text-zinc-500 font-mono text-xs border border-zinc-700 px-2 py-0.5">
+                        <span className="truncate text-[13px] text-[var(--erp-muted)]">
                           {s.station?.station_type?.name}
                         </span>
-                      </div>
-                      <div className="text-zinc-400 font-mono text-sm mt-1">
-                        {s.profile?.full_name || "Walk-in Guest"} • Started{" "}
+                      </p>
+                      <p className="tnum mt-0.5 truncate text-[13px] text-[var(--erp-muted)]">
+                        {s.profile?.full_name || "Walk-in guest"} · started{" "}
                         {new Date(s.started_at).toLocaleTimeString("en-IN", {
                           hour: "2-digit",
                           minute: "2-digit",
                           timeZone: "Asia/Kolkata",
                         })}
-                      </div>
+                        {s.status !== "active" ? " · paused" : ""}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <div className="text-brand font-mono font-bold text-2xl tabular-nums">
+                  <div className="flex shrink-0 items-center justify-between gap-4 border-t border-white/[0.07] pt-3 lg:justify-end lg:border-0 lg:pt-0">
+                    <p className="text-right leading-tight">
+                      <span className="tnum block text-lg font-semibold text-white">
                         {Math.floor(elapsed / 60)}h {elapsed % 60}m
-                      </div>
-                      <div className="text-zinc-500 font-mono text-xs">
-                        Est: {formatPrice(estimatedPrice)}
-                      </div>
-                    </div>
-
+                      </span>
+                      <span className="tnum block text-xs text-[var(--erp-muted)]">
+                        ≈ {formatPrice(estimatedPrice)}
+                      </span>
+                    </p>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handlePauseResume(s.id, s.status)}
-                        disabled={actionLoading === s.id}
-                        className="text-xs font-mono uppercase tracking-wider text-yellow-400 hover:bg-yellow-500/10 px-4 py-2 border border-yellow-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                        disabled={busy}
+                        className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-white/[0.1] bg-white/[0.03] px-3.5 text-[13px] font-semibold text-slate-200 transition hover:bg-white/[0.06] disabled:opacity-50"
                       >
+                        {s.status === "active" ? <Pause className="size-3.5" aria-hidden="true" /> : <Play className="size-3.5" aria-hidden="true" />}
                         {s.status === "active" ? "Pause" : "Resume"}
                       </button>
                       <button
                         onClick={() => handleEnd(s.id)}
-                        disabled={actionLoading === s.id}
-                        className="text-xs font-mono uppercase tracking-wider text-red-400 hover:bg-red-500/10 px-4 py-2 border border-red-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                        disabled={busy}
+                        className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-red-400/25 bg-red-400/10 px-3.5 text-[13px] font-semibold text-red-200 transition hover:bg-red-400/15 disabled:opacity-50"
                       >
-                        End & Bill
+                        <ReceiptText className="size-3.5" aria-hidden="true" />
+                        End & bill
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })
         )}
       </div>
 
-      {/* Start Session Modal */}
       {showStartModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="start-session-title">
-          <div className="bg-obsidian border border-zinc-700 max-w-lg w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
-              <h2 id="start-session-title" className="text-xl font-heading font-bold text-white uppercase">
-                Start Walk-in Session
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="start-session-title">
+          <button type="button" aria-label="Close" onClick={() => setShowStartModal(false)} className="absolute inset-0 cursor-default" />
+          <div className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/[0.1] bg-[var(--erp-bg-secondary)]">
+            <div className="flex items-center justify-between border-b border-white/[0.08] p-5">
+              <h2 id="start-session-title" className="ops-heading text-lg font-semibold tracking-tight text-white">
+                Start a walk-in session
               </h2>
               <button
                 onClick={() => setShowStartModal(false)}
                 aria-label="Close session dialog"
-                className="text-zinc-500 hover:text-white transition-colors cursor-pointer text-2xl leading-none"
+                className="grid size-9 place-items-center rounded-[10px] border border-white/[0.08] text-[var(--erp-muted)] transition hover:bg-white/[0.06] hover:text-white"
               >
-                ×
+                <X className="size-4" aria-hidden="true" />
               </button>
             </div>
-            <div className="p-6">
-              <p className="text-zinc-400 text-sm mb-6">
-                Select an available station to start a new session:
-              </p>
+            <div className="p-5">
               {availableStations.length === 0 ? (
-                <p className="text-zinc-500 font-mono text-center py-8">
-                  No stations available
-                </p>
+                <OpsEmpty title="Nothing free" description="Every station is occupied or down. Check the floor for the next one freeing up." />
               ) : (
-                <div className="space-y-2">
+                <ul className="space-y-2">
                   {availableStations.map((station) => {
                     const st = station as {
                       id: string;
@@ -277,29 +284,26 @@ export default function SessionsPage() {
                         base_price_per_hour: number;
                       };
                     };
+                    const starting = actionLoading === st.id;
                     return (
-                      <button
-                        key={st.id}
-                        onClick={() => handleStart(st.id)}
-                        disabled={actionLoading === st.id}
-                        className="w-full flex items-center justify-between bg-stealth/30 border border-zinc-800 hover:border-brand/50 p-4 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                          <span className="text-white font-heading font-bold">
-                            {st.name}
+                      <li key={st.id}>
+                        <button
+                          onClick={() => handleStart(st.id)}
+                          disabled={starting}
+                          className="ops-surface-interactive flex w-full items-center justify-between gap-3 rounded-[10px] p-3.5 text-left disabled:opacity-50"
+                        >
+                          <span className="flex min-w-0 items-center gap-2.5">
+                            <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
+                            <span className="truncate text-sm font-semibold text-white">{st.name}</span>
                           </span>
-                        </div>
-                        <span className="text-zinc-400 font-mono text-sm">
-                          {formatPrice(
-                            st.station_type?.base_price_per_hour || 0,
-                          )}
-                          /hr
-                        </span>
-                      </button>
+                          <span className="tnum shrink-0 text-[13px] text-[var(--erp-muted)]">
+                            {starting ? "Starting…" : `${formatPrice(st.station_type?.base_price_per_hour || 0)}/hr`}
+                          </span>
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               )}
             </div>
           </div>

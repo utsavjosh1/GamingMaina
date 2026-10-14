@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { collectPayment, getTodayRevenue } from "../actions";
+import { Banknote, CreditCard, Smartphone } from "lucide-react";
+import { collectPayment, getActingContext, getTodayRevenue } from "../actions";
+import { OpsAlert, OpsEmpty, OpsPanel } from "@/components/ui/OpsPrimitives";
+import { cn } from "@/lib/utils";
+
+const methods = [
+  { id: "cash", label: "Cash", icon: Banknote },
+  { id: "upi", label: "UPI", icon: Smartphone },
+  { id: "card", label: "Card", icon: CreditCard },
+] as const;
 
 export default function PaymentsPage() {
   const [revenue, setRevenue] = useState<{
@@ -11,7 +20,6 @@ export default function PaymentsPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Payment form state
   const [amount, setAmount] = useState("");
   const [bookingId, setBookingId] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -21,12 +29,18 @@ export default function PaymentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const attemptKeyRef = React.useRef(crypto.randomUUID());
+
+  const [branchLabel, setBranchLabel] = useState("Counter");
 
   useEffect(() => {
     getTodayRevenue()
       .then(setRevenue)
       .catch((err) => setError(err instanceof Error ? err.message : "Unable to load revenue"))
       .finally(() => setLoading(false));
+    getActingContext()
+      .then((acting) => setBranchLabel(`${acting.org.name} · ${acting.branch.name}`))
+      .catch(() => undefined);
   }, []);
 
   const formatPrice = (paise: number) =>
@@ -36,11 +50,11 @@ export default function PaymentsPage() {
     e.preventDefault();
     const amountInPaise = Math.round(parseFloat(amount) * 100);
     if (!!bookingId.trim() === !!sessionId.trim()) {
-      setError("Enter exactly one booking ID or session ID");
+      setError("Link exactly one booking or session — not both, not neither.");
       return;
     }
     if (!Number.isFinite(amountInPaise) || amountInPaise <= 0) {
-      setError("Enter a valid amount");
+      setError("Enter a valid amount above zero.");
       return;
     }
 
@@ -51,11 +65,13 @@ export default function PaymentsPage() {
       await collectPayment({
         bookingId: bookingId.trim() || undefined,
         sessionId: sessionId.trim() || undefined,
-        amount: amountInPaise, // Convert ₹ to paise
+        amount: amountInPaise,
         method,
         upiReference: upiRef || undefined,
         notes: notes || undefined,
+        idempotencyKey: attemptKeyRef.current,
       });
+      attemptKeyRef.current = crypto.randomUUID();
       setSuccess(true);
       setAmount("");
       setBookingId("");
@@ -63,7 +79,6 @@ export default function PaymentsPage() {
       setUpiRef("");
       setNotes("");
 
-      // Refresh revenue
       const updated = await getTodayRevenue();
       setRevenue(updated);
     } catch (err) {
@@ -72,33 +87,36 @@ export default function PaymentsPage() {
     setSubmitting(false);
   };
 
+  const inputClass =
+    "tnum w-full rounded-[10px] border border-white/[0.1] bg-black/30 px-3.5 py-3 text-sm text-white placeholder:text-[var(--erp-subtle)] focus:border-ember/60 focus:outline-none";
+  const labelClass = "mb-1.5 block text-[13px] font-medium text-[var(--erp-muted)]";
+
   return (
-    <div className="p-8">
-      <div className="mb-10">
-        {error && <div role="alert" className="mb-4 border border-red-500/30 bg-red-500/10 p-3 font-mono text-sm text-red-400">{error}</div>}
-        <h1 className="text-3xl font-heading font-black text-white uppercase tracking-tight">
-          Payments
-        </h1>
-        <p className="text-zinc-500 font-mono text-sm mt-1">
-          Collect payments and track revenue
+    <div className="mx-auto w-full max-w-[88rem] space-y-6">
+      <div>
+        <p className="text-[13px] text-[var(--erp-muted)]">Counter · {branchLabel}</p>
+        <h1 className="ops-heading mt-1 text-2xl font-semibold tracking-tight text-white">Payments</h1>
+        <p className="mt-1 text-sm text-[var(--erp-muted)]">
+          Collect against a booking or session, then watch the total update.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Collect Payment Form */}
-        <div>
-          <h2 className="text-lg font-heading font-bold text-white uppercase tracking-widest mb-6">
-            Collect Payment
-          </h2>
-          <form
-            onSubmit={handleCollect}
-            className="bg-stealth/20 border border-zinc-800 p-6 space-y-5"
-          >
+      {error && (
+        <OpsAlert tone="error" title="Payment not collected.">
+          {error}
+        </OpsAlert>
+      )}
+      {success && (
+        <OpsAlert tone="success" title="Payment collected.">
+          Revenue below already includes it.
+        </OpsAlert>
+      )}
+
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        <OpsPanel title="Collect a payment" description="One booking or session per payment.">
+          <form onSubmit={handleCollect} className="space-y-4">
             <div>
-              <label htmlFor="payment-amount" className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-                Amount (₹)
-              </label>
-              <p className="text-zinc-600 font-mono text-[10px] mb-2">Add a booking or session ID to reconcile this payment.</p>
+              <label htmlFor="payment-amount" className={labelClass}>Amount (₹)</label>
               <input
                 id="payment-amount"
                 type="number"
@@ -108,128 +126,138 @@ export default function PaymentsPage() {
                 required
                 min="1"
                 step="0.01"
-                className="w-full bg-obsidian border border-zinc-700 text-white font-heading font-bold text-2xl px-4 py-3 focus:border-brand focus:outline-none transition-colors placeholder:text-zinc-700"
+                inputMode="decimal"
+                className={cn(inputClass, "text-2xl font-semibold")}
               />
             </div>
 
             <div>
-              <label className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-                Payment Method
-              </label>
-              <div className="flex gap-3">
-                {(["cash", "upi", "card"] as const).map((m) => (
+              <span id="method-label" className={labelClass}>Method</span>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="method-label">
+                {methods.map((m) => (
                   <button
-                    key={m}
+                    key={m.id}
                     type="button"
-                    onClick={() => setMethod(m)}
-                    className={`flex-1 py-3 border font-heading font-bold text-sm uppercase transition-all cursor-pointer ${
-                      method === m
-                        ? "border-brand bg-brand/10 text-white"
-                        : "border-zinc-800 text-zinc-500 hover:border-zinc-600"
-                    }`}
+                    role="radio"
+                    aria-checked={method === m.id}
+                    onClick={() => setMethod(m.id)}
+                    className={cn(
+                      "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border px-3 text-sm font-semibold transition",
+                      method === m.id
+                        ? "border-paper bg-paper text-ink"
+                        : "border-white/[0.1] bg-white/[0.02] text-[var(--erp-muted)] hover:text-white",
+                    )}
                   >
-                    {m === "cash" ? "💵" : m === "upi" ? "📱" : "💳"} {m}
+                    <m.icon className="size-4" aria-hidden="true" />
+                    {m.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="payment-booking" className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">Booking ID (optional)</label>
-                <input id="payment-booking" value={bookingId} onChange={(e) => setBookingId(e.target.value)} className="w-full bg-obsidian border border-zinc-700 text-white font-mono text-xs px-3 py-3 focus:border-brand focus:outline-none" />
+                <label htmlFor="payment-booking" className={labelClass}>Booking ID</label>
+                <input
+                  id="payment-booking"
+                  value={bookingId}
+                  onChange={(e) => setBookingId(e.target.value)}
+                  placeholder="Optional"
+                  autoComplete="off"
+                  className={inputClass}
+                />
               </div>
               <div>
-                <label htmlFor="payment-session" className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">Session ID (optional)</label>
-                <input id="payment-session" value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full bg-obsidian border border-zinc-700 text-white font-mono text-xs px-3 py-3 focus:border-brand focus:outline-none" />
+                <label htmlFor="payment-session" className={labelClass}>Session ID</label>
+                <input
+                  id="payment-session"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  placeholder="Optional"
+                  autoComplete="off"
+                  className={inputClass}
+                />
               </div>
             </div>
 
             {method === "upi" && (
               <div>
-                <label htmlFor="upi-reference" className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-                  UPI Reference
-                </label>
+                <label htmlFor="upi-reference" className={labelClass}>UPI reference</label>
                 <input
                   id="upi-reference"
                   type="text"
                   value={upiRef}
                   onChange={(e) => setUpiRef(e.target.value)}
-                  placeholder="Transaction ID"
-                  className="w-full bg-obsidian border border-zinc-700 text-white font-mono text-sm px-4 py-3 focus:border-brand focus:outline-none transition-colors placeholder:text-zinc-700"
+                  placeholder="Transaction ID from the payer's app"
+                  autoComplete="off"
+                  className={inputClass}
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="payment-notes" className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-                Notes (Optional)
+              <label htmlFor="payment-notes" className={labelClass}>
+                Notes <span className="text-[var(--erp-subtle)]">(optional)</span>
               </label>
               <input
                 id="payment-notes"
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. PC-RTX #3, 2hr session"
-                className="w-full bg-obsidian border border-zinc-700 text-white font-mono text-sm px-4 py-3 focus:border-brand focus:outline-none transition-colors placeholder:text-zinc-700"
+                placeholder="e.g. PC-RTX 3, 2-hour session"
+                autoComplete="off"
+                className={inputClass}
               />
             </div>
-
-            {success && (
-              <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-sm p-3 font-mono">
-                ✓ Payment collected successfully
-              </div>
-            )}
 
             <button
               type="submit"
               disabled={submitting || !amount}
-              className="w-full bg-brand hover:bg-brand/90 text-white font-heading font-bold text-sm tracking-widest uppercase py-4 transition-all hover:shadow-[0_0_20px_rgba(136,88,237,0.3)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-[10px] bg-paper px-4 text-sm font-semibold text-ink transition hover:bg-white disabled:opacity-50"
             >
-              {submitting ? "Processing..." : "Collect Payment"}
+              {submitting ? "Collecting…" : "Collect payment"}
             </button>
           </form>
-        </div>
+        </OpsPanel>
 
-        {/* Revenue Summary */}
-        <div>
-          <h2 className="text-lg font-heading font-bold text-white uppercase tracking-widest mb-6">
-            Today&apos;s Revenue
-          </h2>
+        <OpsPanel
+          title="Revenue today"
+          description={revenue ? `${revenue.count} payment${revenue.count === 1 ? "" : "s"} so far` : "Loading today's total."}
+        >
           {loading ? (
-            <div className="animate-pulse h-40 bg-zinc-900 rounded"></div>
-          ) : revenue ? (
-            <div className="space-y-4">
-              <div className="bg-stealth/20 border border-zinc-800 p-8 text-center">
-                <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-3">
-                  Total Revenue
-                </span>
-                <span className="text-brand font-heading font-black text-5xl">
-                  {formatPrice(revenue.total)}
-                </span>
-                <span className="text-zinc-600 font-mono text-sm block mt-2">
-                  {revenue.count} transaction{revenue.count !== 1 ? "s" : ""}
-                </span>
+            <div className="animate-pulse space-y-2">
+              <div className="h-24 rounded-[10px] bg-white/[0.04]" />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-16 rounded-[10px] bg-white/[0.04]" />
+                <div className="h-16 rounded-[10px] bg-white/[0.04]" />
+                <div className="h-16 rounded-[10px] bg-white/[0.04]" />
               </div>
-
-              <div className="grid grid-cols-3 gap-3">
+            </div>
+          ) : revenue ? (
+            <div className="space-y-2">
+              <div className="ops-sunken rounded-[12px] p-6 text-center">
+                <p className="tnum font-heading text-4xl font-extrabold tracking-tight text-paper">
+                  {formatPrice(revenue.total)}
+                </p>
+                <p className="tnum mt-1 text-[13px] text-[var(--erp-muted)]">
+                  {revenue.count} transaction{revenue.count !== 1 ? "s" : ""} today
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
                 {(["cash", "upi", "card"] as const).map((m) => (
-                  <div
-                    key={m}
-                    className="bg-stealth/20 border border-zinc-800 p-4 text-center"
-                  >
-                    <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest block mb-2">
-                      {m}
-                    </span>
-                    <span className="text-white font-heading font-bold text-lg">
+                  <div key={m} className="ops-sunken rounded-[10px] p-3.5 text-center">
+                    <p className="text-xs capitalize text-[var(--erp-muted)]">{m}</p>
+                    <p className="tnum mt-1 text-[15px] font-semibold text-paper">
                       {formatPrice(revenue.byMethod[m] || 0)}
-                    </span>
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
-          ) : null}
-        </div>
+          ) : (
+            <OpsEmpty title="Revenue unavailable" description="Reload the page — today's total should appear here." />
+          )}
+        </OpsPanel>
       </div>
     </div>
   );

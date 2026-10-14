@@ -1,88 +1,51 @@
 import Link from "next/link";
+import { ArrowUpRight, Clock, MapPin } from "lucide-react";
+import { businessInfo } from "@/lib/public-content";
 
 export function Footer() {
   return (
-    <footer className="bg-obsidian border-t-[3px] border-stealth mt-auto relative overflow-hidden">
-      {/* Tech grid overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1F2833_1px,transparent_1px),linear-gradient(to_bottom,#1F2833_1px,transparent_1px)] bg-size-[40px_40px] opacity-20 mask-[linear-gradient(to_bottom,white,transparent)] pointer-events-none"></div>
+    <footer className="border-t border-white/[0.08] bg-coal-soft">
+      <div className="gm-container py-14">
+        <Link href="/book-online" className="group block" aria-label="Book a station at Gaming Mania">
+          <p className="ops-heading font-heading text-[clamp(2rem,6vw,4.25rem)] font-extrabold leading-[1.02] tracking-tight text-paper">
+            Delhi plays here<span className="text-ember">.</span>
+            <ArrowUpRight className="ml-3 inline size-[0.7em] text-[var(--gm-subtle)] transition-all group-hover:translate-x-1 group-hover:text-ember-strong" aria-hidden="true" />
+          </p>
+        </Link>
 
-      <div className="max-w-7xl mx-auto pt-20 pb-12 px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 lg:gap-8">
-          <div className="md:col-span-2">
-            <h3 className="text-2xl font-heading font-black tracking-tighter text-white mb-6 flex items-center gap-3">
-              <span className="w-3 h-6 bg-brand inline-block skew-x-[-15deg]"></span>
-              GAMING<span className="text-zinc-600 font-light">MANIA</span>
-            </h3>
-            <p className="text-zinc-400 max-w-md text-sm leading-relaxed font-sans">
-              Your ultimate gaming destination. Console, PC, VR, or racing
-              setups — we’ve got the gear and the vibes. No lag. No limits. Just
-              pure play.
+        <div className="mt-10 grid gap-8 border-t border-white/[0.08] pt-8 md:grid-cols-[1fr_auto_auto]">
+          <div className="max-w-sm">
+            <p className="text-sm font-semibold text-paper">Gaming Mania · Kalkaji</p>
+            <p className="mt-1.5 flex items-start gap-1.5 text-[13px] leading-6 text-[var(--gm-muted)]">
+              <MapPin className="mt-1 size-3.5 shrink-0" aria-hidden="true" />
+              {businessInfo.address}
+            </p>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-[var(--gm-muted)]">
+              <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+              Open daily · {businessInfo.hours}
             </p>
           </div>
-
-          <div>
-            <h4 className="text-xs font-heading font-bold uppercase tracking-[0.2em] text-zinc-500 mb-6 flex items-center gap-2">
-              <span className="w-2 h-[2px] bg-brand"></span> SYSTEM / NAV
-            </h4>
-            <ul className="space-y-4 font-sans font-medium text-sm">
-              <li>
-                <Link
-                  href="/book-online"
-                  className="text-zinc-400 hover:text-white hover:translate-x-1 transition-all inline-block"
-                >
-                  &gt; Book Online
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/games"
-                  className="text-zinc-400 hover:text-white hover:translate-x-1 transition-all inline-block"
-                >
-                  &gt; Games Directory
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/about"
-                  className="text-zinc-400 hover:text-white hover:translate-x-1 transition-all inline-block"
-                >
-                  &gt; About Protocol
-                </Link>
-              </li>
+          <nav aria-label="Explore">
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[var(--gm-muted)]">
+              <li><Link href="/games" className="hover:text-paper">Games</Link></li>
+              <li><Link href="/tournaments" className="hover:text-paper">Tournaments</Link></li>
+              <li><Link href="/#stations" className="hover:text-paper">Stations</Link></li>
+              <li><Link href="/#pricing" className="hover:text-paper">Pricing</Link></li>
+              <li><Link href="/about" className="hover:text-paper">About</Link></li>
             </ul>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-heading font-bold uppercase tracking-[0.2em] text-zinc-500 mb-6 flex items-center gap-2">
-              <span className="w-2 h-[2px] bg-brand"></span> COMMS / LINK
-            </h4>
-            <div className="space-y-3 text-sm font-sans">
-              <p className="text-zinc-400 flex flex-col">
-                <span className="text-zinc-600 text-xs uppercase mb-1">
-                  HQ Location
-                </span>
-                B-95, Kalkaji, New Delhi
-              </p>
-              <p className="text-zinc-400 flex flex-col pt-2">
-                <span className="text-zinc-600 text-xs uppercase mb-1">
-                  Secure Channel
-                </span>
-                <span className="text-zinc-500">Contact details coming soon</span>
-              </p>
-              <p className="text-zinc-400 flex flex-col pt-2">
-                <span className="text-zinc-600 text-xs uppercase mb-1">
-                  Direct Line
-                </span>
-                <span className="text-zinc-500">Contact details coming soon</span>
-              </p>
-            </div>
-          </div>
+          </nav>
+          <nav aria-label="Player">
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[var(--gm-muted)]">
+              <li><Link href="/book-online" className="text-paper hover:text-ember-strong">Book a station</Link></li>
+              <li><Link href="/dashboard" className="hover:text-paper">My bookings</Link></li>
+              <li><Link href="/contact-us" className="hover:text-paper">Contact</Link></li>
+            </ul>
+          </nav>
         </div>
 
-        <div className="mt-20 border-t border-stealth pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-zinc-600 text-xs font-mono uppercase tracking-widest">
-            SYS_STATUS: ONLINE &copy; {new Date().getFullYear()} GAMING MANIA
-          </p>
+        <div className="mt-8 flex flex-col gap-2 border-t border-white/[0.08] pt-6 text-[13px] text-[var(--gm-subtle)] sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} Gaming Mania Delhi. All rights reserved.</p>
+          <p className="tnum">B-95 Kalkaji · South Delhi</p>
         </div>
       </div>
     </footer>

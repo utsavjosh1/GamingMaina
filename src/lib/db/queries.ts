@@ -1,15 +1,24 @@
+import "server-only";
+
+import { unstable_cache } from "next/cache";
 import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import { getDelhiDate, getDelhiDayOfWeek, toDelhiInstant } from "@/lib/dates";
+import { quoteBookingPrice } from "@/lib/domain/pricing";
+import { AUDIT_ACTIONS, writeAudit } from "@/lib/domain/audit";
+import { claimIdempotencyKey, completeIdempotencyKey } from "@/lib/domain/idempotency";
+import { conflict, notFound } from "@/lib/domain/errors";
+import { getDefaultBranch, resolveActingContext } from "@/lib/db/tenancy";
 import { db } from "./index";
 import { bookings, pricingRules, profiles, stationTypes, stations } from "./schema";
 
+/** Nested customer identity for booking/session payloads — display data only.
+ *  AuthZ roles never ride along here (memberships own roles since Phase 4). */
 export function toProfile(row: typeof profiles.$inferSelect) {
   return {
     id: row.id,
     full_name: row.fullName,
     avatar_url: row.avatarUrl,
     phone: row.phone,
-    role: row.role,
     membership_type: row.membershipType,
     created_at: row.createdAt.toISOString(),
   };
@@ -26,32 +35,62 @@ export function toStationType(row: typeof stationTypes.$inferSelect) {
   };
 }
 
-export async function getStationTypeAvailability() {
-  const types = await db.select().from(stationTypes).orderBy(asc(stationTypes.name));
-  const allStations = await db.select({ typeId: stations.stationTypeId, status: stations.status }).from(stations);
+export async function getStationTypeAvailability(branchId?: string) {
+  // Tenant scope (§4): counts only this branch's stations. Public callers
+  // fall back to the default branch; the cache is single-branch keyed.
+  const branch = branchId ?? (await getDefaultBranch()).id;
+  const rows = await db
+    .select({
+      id: stationTypes.id,
+      name: stationTypes.name,
+      category: stationTypes.category,
+      basePricePerHour: stationTypes.basePricePerHour,
+      imageUrl: stationTypes.imageUrl,
+      orgId: stationTypes.orgId,
+      createdAt: stationTypes.createdAt,
+      available: sql<number>`count(${stations.id}) filter (where ${stations.status} = 'available' and ${stations.branchId} = ${branch})`,
+      total: sql<number>`count(${stations.id}) filter (where ${stations.status} in ('available', 'booked') and ${stations.branchId} = ${branch})`,
+    })
+    .from(stationTypes)
+    .leftJoin(stations, and(eq(stations.stationTypeId, stationTypes.id), eq(stations.branchId, branch)))
+    .groupBy(
+      stationTypes.id,
+      stationTypes.name,
+      stationTypes.category,
+      stationTypes.basePricePerHour,
+      stationTypes.imageUrl,
+      stationTypes.orgId,
+      stationTypes.createdAt,
+    )
+    .orderBy(asc(stationTypes.name));
 
-  return types.map((type) => {
-    const typeStations = allStations.filter((station) => station.typeId === type.id);
-    return {
-      ...toStationType(type),
-      available: typeStations.filter((station) => station.status === "available").length,
-      total: typeStations.filter((station) => ["available", "booked"].includes(station.status)).length,
-    };
-  });
+  return rows.map((row) => ({
+    ...toStationType(row),
+    available: Number(row.available),
+    total: Number(row.total),
+  }));
 }
 
-export async function getAvailableSlots(stationTypeId: string, date: string, durationHours: number) {
-  const [stationCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(stations)
-    .where(and(eq(stations.stationTypeId, stationTypeId), inArray(stations.status, ["available", "booked"])));
-  const total = Number(stationCount?.count ?? 0);
-  if (total === 0) return [];
+export const getCachedStationTypeAvailability = unstable_cache(
+  getStationTypeAvailability,
+  ["station-type-availability"],
+  { revalidate: 60, tags: ["station-type-availability"] },
+);
 
-  const rows = await db
-    .select({ startTime: bookings.startTime, endTime: bookings.endTime })
-    .from(bookings)
-    .where(and(eq(bookings.stationTypeId, stationTypeId), eq(bookings.bookingDate, date), inArray(bookings.status, ["confirmed", "checked_in"])));
+export async function getAvailableSlots(stationTypeId: string, date: string, durationHours: number, branchId?: string) {
+  const branch = branchId ?? (await getDefaultBranch()).id;
+  const [stationCountResult, rows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(stations)
+      .where(and(eq(stations.stationTypeId, stationTypeId), eq(stations.branchId, branch), inArray(stations.status, ["available", "booked"]))),
+    db
+      .select({ startTime: bookings.startTime, endTime: bookings.endTime })
+      .from(bookings)
+      .where(and(eq(bookings.stationTypeId, stationTypeId), eq(bookings.bookingDate, date), eq(bookings.branchId, branch), inArray(bookings.status, ["confirmed", "checked_in"]))),
+  ]);
+  const total = Number(stationCountResult[0]?.count ?? 0);
+  if (total === 0) return [];
 
   const nowDate = getDelhiDate();
   const nowTime = new Intl.DateTimeFormat("en-GB", {
@@ -83,63 +122,89 @@ function addHours(startTime: string, hours: number) {
   return `${String(endHour).padStart(2, "0")}:00:00`;
 }
 
+export interface BookingResponse {
+  id: string;
+  user_id: string;
+  station_type_id: string;
+  station_id: string | null;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_hours: number;
+  estimated_price: number;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
 export async function createBooking(userId: string, input: {
   stationTypeId: string;
   date: string;
   startTime: string;
   hours: number;
-}) {
+  idempotencyKey?: string;
+}): Promise<BookingResponse> {
   const endTime = addHours(input.startTime, input.hours);
-  const booking = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${input.stationTypeId}:${input.date}`}, 0))`);
+  // Tenant scope (§4): the booking lands in the customer's acting branch.
+  const acting = await resolveActingContext(userId);
+  return db.transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const claim = await claimIdempotencyKey(tx, {
+        key: input.idempotencyKey,
+        userId,
+        action: "booking.create",
+        ttlHours: 24,
+      });
+      // Replay returns the exact response the first attempt produced.
+      if (claim.replay) return claim.response as BookingResponse;
+    }
+
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${acting.branch.id}:${input.stationTypeId}:${input.date}`}, 0))`);
 
     const [stationType] = await tx.select().from(stationTypes).where(eq(stationTypes.id, input.stationTypeId)).limit(1);
-    if (!stationType) throw new Error("Station type not found");
+    if (!stationType) throw notFound("Station type not found");
     const [stationCount] = await tx
       .select({ count: sql<number>`count(*)` })
       .from(stations)
-      .where(and(eq(stations.stationTypeId, input.stationTypeId), inArray(stations.status, ["available", "booked"])));
+      .where(and(eq(stations.stationTypeId, input.stationTypeId), eq(stations.branchId, acting.branch.id), inArray(stations.status, ["available", "booked"])));
     const [bookingCount] = await tx
       .select({ count: sql<number>`count(*)` })
       .from(bookings)
       .where(and(
         eq(bookings.stationTypeId, input.stationTypeId),
         eq(bookings.bookingDate, input.date),
+        eq(bookings.branchId, acting.branch.id),
         inArray(bookings.status, ["confirmed", "checked_in"]),
         lt(bookings.startTime, endTime),
         gt(bookings.endTime, input.startTime),
       ));
     if (Number(bookingCount?.count ?? 0) >= Number(stationCount?.count ?? 0)) {
-      throw new Error("No stations available for this time slot");
+      throw conflict("No stations available for this time slot", {
+        stationTypeId: input.stationTypeId,
+        date: input.date,
+      });
     }
 
     const [profile] = await tx.select({ membershipType: profiles.membershipType }).from(profiles).where(eq(profiles.id, userId)).limit(1);
-    let total = stationType.basePricePerHour * input.hours;
     const dayName = getDelhiDayOfWeek(input.date);
-    const rules = await tx.select().from(pricingRules).where(eq(pricingRules.isActive, true)).orderBy(desc(pricingRules.priority));
-    const packageRule = rules.find((rule) => rule.ruleType === "package"
-      && (!rule.stationTypeId || rule.stationTypeId === input.stationTypeId)
-      && Number((rule.conditions as Record<string, unknown>).min_hours) <= input.hours);
-
-    if (packageRule?.fixedPrice != null) {
-      total = packageRule.fixedPrice;
-    } else {
-      for (const rule of rules) {
-        const conditions = rule.conditions as Record<string, unknown>;
-        if (rule.ruleType === "happy_hour" && Array.isArray(conditions.days)
-          && conditions.days.includes(dayName)
-          && input.startTime >= String(conditions.start)
-          && input.startTime < String(conditions.end)) {
-          total -= Math.round(total * Number(rule.discountPercent ?? 0) / 100);
-        }
-        if (rule.ruleType === "membership_discount" && profile?.membershipType === conditions.membership) {
-          total -= Math.round(total * Number(rule.discountPercent ?? 0) / 100);
-        }
-      }
-    }
+    const rules = await tx.select().from(pricingRules)
+      .where(and(eq(pricingRules.isActive, true), eq(pricingRules.branchId, acting.branch.id)))
+      .orderBy(desc(pricingRules.priority));
+    // One pricing engine (contract §9) — scoped to this station type or global.
+    const scopedRules = rules.filter((rule) => !rule.stationTypeId || rule.stationTypeId === input.stationTypeId);
+    const quote = quoteBookingPrice({
+      basePricePerHourPaise: stationType.basePricePerHour,
+      hours: input.hours,
+      rules: scopedRules,
+      dayOfWeek: dayName,
+      startTimeHHMM: input.startTime.slice(0, 5),
+      membershipType: profile?.membershipType ?? "none",
+    });
+    const total = quote.totalPaise;
 
     const [result] = await tx.insert(bookings).values({
       userId,
+      branchId: acting.branch.id,
       stationTypeId: input.stationTypeId,
       bookingDate: input.date,
       startTime: input.startTime,
@@ -149,31 +214,60 @@ export async function createBooking(userId: string, input: {
       status: "confirmed",
       expiresAt: new Date(toDelhiInstant(input.date, input.startTime).getTime() + 15 * 60 * 1000),
     }).returning();
-    return result;
-  });
+    if (!result) throw conflict("Booking could not be created");
 
-  return {
-    id: booking.id,
-    user_id: booking.userId,
-    station_type_id: booking.stationTypeId,
-    station_id: booking.stationId,
-    booking_date: booking.bookingDate,
-    start_time: booking.startTime,
-    end_time: booking.endTime,
-    duration_hours: Number(booking.durationHours),
-    estimated_price: booking.estimatedPrice,
-    status: booking.status,
-    expires_at: booking.expiresAt?.toISOString() ?? null,
-    created_at: booking.createdAt.toISOString(),
-  };
+    const response = {
+      id: result.id,
+      user_id: result.userId,
+      station_type_id: result.stationTypeId,
+      station_id: result.stationId,
+      booking_date: result.bookingDate,
+      start_time: result.startTime,
+      end_time: result.endTime,
+      duration_hours: Number(result.durationHours),
+      estimated_price: result.estimatedPrice,
+      status: result.status,
+      expires_at: result.expiresAt?.toISOString() ?? null,
+      created_at: result.createdAt.toISOString(),
+    };
+
+    await writeAudit(tx, {
+      actorId: userId,
+      action: AUDIT_ACTIONS.bookingCreated,
+      entityType: "booking",
+      entityId: result.id,
+      orgId: acting.org.id,
+      branchId: acting.branch.id,
+      newValue: { ...response },
+    });
+    if (input.idempotencyKey) {
+      await completeIdempotencyKey(tx, input.idempotencyKey, response);
+    }
+    return response;
+  });
 }
 
 export async function cancelBooking(userId: string, bookingId: string) {
-  const [result] = await db.update(bookings)
-    .set({ status: "cancelled" })
-    .where(and(eq(bookings.id, bookingId), eq(bookings.userId, userId), eq(bookings.status, "confirmed")))
-    .returning({ id: bookings.id });
-  if (!result) throw new Error("Booking cannot be cancelled");
+  const acting = await resolveActingContext(userId);
+  return db.transaction(async (tx) => {
+    // Conditional update = concurrency-safe: only confirmed → cancelled, own branch.
+    const [result] = await tx.update(bookings)
+      .set({ status: "cancelled" })
+      .where(and(eq(bookings.id, bookingId), eq(bookings.userId, userId), eq(bookings.branchId, acting.branch.id), eq(bookings.status, "confirmed")))
+      .returning({ id: bookings.id });
+    if (!result) throw conflict("Booking cannot be cancelled");
+    await writeAudit(tx, {
+      actorId: userId,
+      action: AUDIT_ACTIONS.bookingCancelled,
+      entityType: "booking",
+      entityId: result.id,
+      orgId: acting.org.id,
+      branchId: acting.branch.id,
+      oldValue: { status: "confirmed" },
+      newValue: { status: "cancelled" },
+    });
+    return { success: true };
+  });
 }
 
 export function toStation(row: typeof stations.$inferSelect, stationType?: typeof stationTypes.$inferSelect | null) {
@@ -208,19 +302,21 @@ export function toBooking(row: typeof bookings.$inferSelect, stationType?: typeo
   };
 }
 
+// Accepts rows revived from idempotency JSON (ISO strings) as well as live
+// Drizzle rows (Date objects) — replays must serialize identically.
 export function toSession(row: typeof import("./schema").sessions.$inferSelect, station?: ReturnType<typeof toStation> | null, profile?: typeof profiles.$inferSelect | null) {
   return {
     id: row.id,
     booking_id: row.bookingId,
     user_id: row.userId,
     station_id: row.stationId,
-    started_at: row.startedAt.toISOString(),
-    paused_at: row.pausedAt?.toISOString() ?? null,
-    ended_at: row.endedAt?.toISOString() ?? null,
+    started_at: new Date(row.startedAt).toISOString(),
+    paused_at: row.pausedAt ? new Date(row.pausedAt).toISOString() : null,
+    ended_at: row.endedAt ? new Date(row.endedAt).toISOString() : null,
     total_paused_minutes: row.totalPausedMinutes,
     status: row.status,
     started_by: row.startedBy,
-    created_at: row.createdAt.toISOString(),
+    created_at: new Date(row.createdAt).toISOString(),
     station: station ?? undefined,
     profile: profile ? toProfile(profile) : undefined,
   };

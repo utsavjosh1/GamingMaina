@@ -1,9 +1,10 @@
 "use client";
 
 import React, { Suspense } from "react";
-import { useAuth } from "@/components/providers/AuthProvider";
+import { AuthProvider, useAuth } from "@/components/providers/AuthProvider";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 function LoginContent() {
   const { signInWithGoogle, loading } = useAuth();
@@ -12,59 +13,35 @@ function LoginContent() {
   const error = searchParams.get("error");
 
   return (
-    <div className="min-h-[80vh] pt-32 pb-20 bg-obsidian flex flex-col items-center justify-center text-center px-4 relative overflow-hidden">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand/8 blur-[200px] pointer-events-none rounded-full -mt-64"></div>
+    <div className="flex min-h-[85vh] flex-col items-center justify-center px-4 pb-20 pt-28 text-center">
+      <div className="w-full max-w-md">
+        <Link href="/" className="inline-flex items-center gap-2.5" aria-label="Gaming Mania home">
+          <span className="grid size-9 place-items-center rounded-xl bg-ember text-base font-black text-ember-ink">
+            M
+          </span>
+          <span className="font-heading text-xl font-bold tracking-tight text-paper">Gaming Mania</span>
+        </Link>
 
-      <div className="max-w-md w-full relative z-10">
-        <div className="mb-12">
-          <Link
-            href="/"
-            className="font-heading font-black text-3xl tracking-tighter text-white inline-flex items-center gap-3"
-          >
-            <span className="w-5 h-5 bg-brand inline-block transform -skew-x-12"></span>
-            GAMING
-            <span className="text-zinc-600 font-light tracking-widest">
-              MANIA
-            </span>
-          </Link>
-        </div>
-
-        <div className="bg-stealth/30 border border-zinc-800 backdrop-blur-xl p-10 relative">
-          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-brand"></div>
-          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-brand"></div>
-          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-brand"></div>
-          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-brand"></div>
-
-          <div className="inline-block bg-brand/10 border border-brand/30 px-3 py-1 mb-8 rounded-full">
-            <span className="text-brand font-mono text-[10px] uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse"></span>
-              AUTHENTICATION REQUIRED
-            </span>
-          </div>
-
-          <h1 className="text-3xl font-heading font-black tracking-tighter text-white mb-3 uppercase">
-            Initialize{" "}
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-brand to-zinc-500">
-              Session
-            </span>
+        <div className="mt-8 rounded-2xl border border-white/[0.09] bg-[#14100d] p-7 text-left sm:p-8">
+          <h1 className="ops-heading font-heading text-2xl font-extrabold tracking-tight text-paper">
+            Sign in to book.
           </h1>
-          <p className="text-zinc-400 text-sm font-sans mb-10 leading-relaxed">
-            Sign in to book gaming stations, track sessions, and access
-            exclusive member perks.
+          <p className="mt-2 text-sm leading-6 text-[var(--gm-muted)]">
+            One tap with Google — reserve stations, track bookings, skip the queue at the counter.
           </p>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 mb-6 font-mono">
-              Authentication failed. Please try again.
+            <div role="alert" className="mt-5 rounded-xl border border-red-400/25 bg-red-400/10 p-3.5 text-sm text-red-200">
+              Sign-in failed. Please try again.
             </div>
           )}
 
           <button
             onClick={() => signInWithGoogle(redirect)}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 text-zinc-900 font-heading font-bold text-sm tracking-wide py-4 px-6 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="mt-6 flex min-h-[3.25rem] w-full items-center justify-center gap-3 whitespace-nowrap rounded-xl bg-paper px-6 text-[15px] font-semibold text-ink transition-colors hover:bg-white disabled:opacity-50"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="size-5" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                 fill="#4285F4"
@@ -82,22 +59,21 @@ function LoginContent() {
                 fill="#EA4335"
               />
             </svg>
-            {loading ? "INITIALIZING..." : "SIGN IN WITH GOOGLE"}
+            <span>{loading ? "Signing you in…" : "Continue with Google"}</span>
           </button>
 
-          <div className="mt-6 text-zinc-600 text-[10px] font-mono tracking-wide uppercase">
-            Secure authentication via Google OAuth 2.0
-          </div>
+          <p className="tnum mt-5 text-center text-xs text-[var(--gm-subtle)]">
+            Secure OAuth · We never see your password
+          </p>
         </div>
 
-        <div className="mt-8">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-brand text-sm font-heading font-bold uppercase tracking-widest transition-colors"
-          >
-            ← Return to Base
-          </Link>
-        </div>
+        <Link
+          href="/"
+          className="group mt-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--gm-muted)] hover:text-paper"
+        >
+          <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
+          Back to home
+        </Link>
       </div>
     </div>
   );
@@ -107,12 +83,14 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[80vh] flex items-center justify-center bg-obsidian">
-          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex min-h-[80vh] items-center justify-center" role="status" aria-label="Loading">
+          <div className="size-9 animate-spin rounded-full border-2 border-ember border-t-transparent" />
         </div>
       }
     >
-      <LoginContent />
+      <AuthProvider>
+        <LoginContent />
+      </AuthProvider>
     </Suspense>
   );
 }
